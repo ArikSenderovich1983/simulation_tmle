@@ -1,7 +1,7 @@
 import pandas as pd
 from resource import *
 import heapq as hq
-import friends_calc as fc
+# import friends_calc as fc
 import plot_workload as pw
 class multi_class_single_station_fcfs:
     #defining the intialization function with the proper parameters.
