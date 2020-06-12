@@ -3,6 +3,8 @@ import random
 from enum import Enum
 from scipy import stats
 import networkx as nx
+# test
+
 class DistributionType(Enum):
     normal = 1
     exponential = 2
@@ -109,15 +111,15 @@ class Distribution:
 
 
 class Token:
-    def __init__(self, id, type, history, enqueue_time):
+    def __init__(self, id_, type_, history, enqueue_time):
 
-        self.id = id
-        self.type = type #includes sequence of types and times - only changes
+        self.id = id_
+        self.type = type_ #includes sequence of types and times - only changes
         self.history = history #includes sequence and times - only changes
 
 
-    def update_data(self, type, history):
-        self.type = type
+    def update_data(self, type_, history):
+        self.type = type_
         self.history = history
 
 class Resource:
