@@ -1,7 +1,9 @@
 import pandas as pd
 from resource import *
 import heapq as hq
+# test comment
 # import friends_calc as fc
+
 import plot_workload as pw
 class multi_class_single_station_fcfs:
     #defining the intialization function with the proper parameters.
@@ -248,27 +250,25 @@ class multi_class_single_station_fcfs:
 
 
 
-q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0,1], probs = [0.5,0.5],
-                                     mus = [0.5,2], prob_speedup=[0.3,0.0], mus_speedup=[5,2],
-                                     servers = 2)
+q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+                                     mus = [1.1], prob_speedup=[0.5], mus_speedup=[11],
+                                     servers = 1)
 
-q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0,1], probs = [0.5,0.5],
-                                     mus = [0.5,2], prob_speedup=[0.0,0.0], mus_speedup=[5,2],
-                                     servers = 2)
+q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+                                     mus = [1.1], prob_speedup=[1.0], mus_speedup=[11],
+                                     servers = 1)
 
 
-q_.simulate_q(customers = 10000, runs = 30)
+q_.simulate_q(customers = 100000, runs = 1)
 
-#q_.generate_data(sla_ = 0.9, quant_flag=True)
-q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = True)
-#q_.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
+q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False)
 
 q_.performance_los()
 
 #fc.calculate_friends("intervention_data.csv", window_ = 5)
 
 
-q_2.simulate_q(customers = 10000, runs = 30)
+q_2.simulate_q(customers = 100000, runs = 1)
 
 q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
 q_2.performance_los()
