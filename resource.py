@@ -3,6 +3,8 @@ import random
 from enum import Enum
 from scipy import stats
 import networkx as nx
+# test
+
 class DistributionType(Enum):
     normal = 1
     exponential = 2
