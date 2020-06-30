@@ -28,7 +28,7 @@ class multi_class_single_station_fcfs:
         self.queue_tracker = [[(0,0)] for c in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
         self.los_tracker = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
         self.nis_tracker = [[(0,0)] for c in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
-        self.trackers = []  # [(los_tracker, queue_tracker), (los_tracker, queue_tracker), ...]
+        # self.trackers = []  # [(los_tracker, queue_tracker), (los_tracker, queue_tracker), ...]
         # self.friends = []
         self.sla_levels = []
 
@@ -102,7 +102,7 @@ class multi_class_single_station_fcfs:
                             self.nis_tracker[class_].append((ts_, self.nis_tracker[class_][-1][1]))
 
                     # if there is a room in service
-                    if sum(in_service)<self.servers:
+                    if sum(in_service) < self.servers:
                         for j,s in enumerate(in_service):
                             # find the first available server
                             if s == 0:
@@ -170,16 +170,14 @@ class multi_class_single_station_fcfs:
                         # add a departure event to the event_calendar
                         hq.heappush(event_calendar, (ts_ + service_times[id_], 'd', id_,server_))
 
-                        # update los_tracker, queue_tracker (subtract 1), and nis_tracker (add 1)
+                        # update los_tracker, queue_tracker (subtract 1)
                         self.los_tracker[classes_[id_]].append(ts_ + service_times[id_] - sim_arrival_times[id_])
                         self.queue_tracker[classes_[id_]].append((ts_,self.queue_tracker[classes_[id_]][-1][1] - 1))
-                        self.nis_tracker[classes_[id_]].append((ts_, self.nis_tracker[classes_[id_]][-1][1] + 1))
 
-                        # update the queue_tracker and nis_tracker for all other classes, Nq stays the same
+                        # update the queue_tracker for all other classes, Nq stays the same
                         for class_ in self.classes_:
                             if classes_[id_]!=class_:
                                 self.queue_tracker[class_].append((ts_, self.queue_tracker[class_][-1][1]))
-                                self.nis_tracker[class_].append((ts_, self.nis_tracker[class_][-1][1]))
 
             # add the event_log to "data"
             self.data.append(event_log)
@@ -227,24 +225,27 @@ class multi_class_single_station_fcfs:
             for i in range(len(df)):
                 df.at[i,'id_run'] = str(df.at[i,'id'])+"_"+str(j)
 
+                # if the event corresponds to the current customer
                 if cur_id == df.at[i,'id']:
                     df.at[i, 'arrival_time'] = cur_start + offset
                     df.at[i,'elapsed'] = df.at[i,'timestamp'] - cur_start
                     #print(df.at[i,'event_type'])
                     #input("Press Enter to continue...")
 
+                # if the event does not correspond to the current customer, events for the next customer starts
                 else:
-                    cur_id = df.at[i, 'id']
-                    cur_start= df.at[i,'timestamp'].copy()
-                    df.at[i,'arrival_time'] = cur_start+offset
+                    cur_id = df.at[i, 'id']  # set current customer to the customer for the event
+                    cur_start = df.at[i,'timestamp'].copy()  # advance the current start time to the time of event
+                    df.at[i,'arrival_time'] = cur_start + offset
                 # df.at[i,'FriendsID'] = " ".join(map(str, temp_friends[df.at[i,'id']]))
                 # df.at[i,'nFriends'] = len(temp_friends[df.at[i, 'id']])
-            offset = offset + max(df['timestamp'])
+
+            offset = offset + max(df['timestamp']) # the next simulation run starts at the offset time
             print('Average LOS per run: ')
             print(np.mean(df[df.event_type == 'd']['elapsed']))
 
             df['SLA'] = 0
-            if quant_flag==True:
+            if quant_flag:
                 sla_ = np.quantile(df[df.event_type == 'd']['elapsed'], q=sla_q)  # np.mean(df['elapsed'])
             else:
                 sla_ = sla_q[j]
@@ -284,13 +285,14 @@ class multi_class_single_station_fcfs:
                                                                                                    mode=mode_,
                                                                                                    index=False,
                                                                                                    header=header_)
-                df[df.event_type == 'q'].loc[:,
+                # wait time = service start time - arrival time
+                df[df.event_type == 's'].loc[:,
                 ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed']].to_csv(save_path,
                                                                                                    mode='a',
                                                                                                    index=False,
                                                                                                    header=False)
-                # Original "intervention_data.csv" generator
-                if j==0:
+                # "intervention_data.csv" generator
+                if j == 0:
                     # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', index=False, header=True)
                     # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp', 'event_type','C', 'A', 'FriendsID','nFriends','elapsed', 'SLA']].to_csv('intervention_data.csv', index=False, header=True)
                     df[df.event_type == 'd'].loc[:,
@@ -303,6 +305,7 @@ class multi_class_single_station_fcfs:
                     df[df.event_type == 'd'].loc[:,
                     ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed', 'SLA']].to_csv(
                         'intervention_data.csv', mode='a', index=False, header=False)
+
 
         # generate files: 2) Queue/Number, 3) System/Number
         if write_file:
@@ -331,6 +334,7 @@ class multi_class_single_station_fcfs:
             df_nis.to_csv(save_path,index=False,header=True)
 
         print("Average SLA value: "+str(np.mean(self.sla_levels)))
+
 
     def performance_los(self):
 
@@ -364,33 +368,33 @@ class multi_class_single_station_fcfs:
             for c in self.classes_:
                 print("LOS per class " + str(c) + ": " + str(run_avg_los_class[c] / len(self.los_tracker)))
 
-'''
-q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
-                                     mus = [1.1], prob_speedup=[0.5], mus_speedup=[11],
-                                     servers = 1)
-
-q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
-                                     mus = [1.1], prob_speedup=[1.0], mus_speedup=[11],
-                                     servers = 1)
-
-
-# q_.simulate_q(customers = 100000, runs = 1)
-q_.simulate_q(customers = 10000, runs = 10)
-q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False)
-
-q_.performance_los()
-
-#fc.calculate_friends("intervention_data.csv", window_ = 5)
-
-
-# q_2.simulate_q(customers = 100000, runs = 1)
-q_2.simulate_q(customers = 10000, runs = 10)
-
-q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
-q_2.performance_los()
-'''
-
 if __name__ == "__main__":
+    '''
+    q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+                                         mus = [1.1], prob_speedup=[0.5], mus_speedup=[11],
+                                         servers = 1)
+
+    q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+                                         mus = [1.1], prob_speedup=[1.0], mus_speedup=[11],
+                                         servers = 1)
+
+
+    # q_.simulate_q(customers = 100000, runs = 1)
+    q_.simulate_q(customers = 10000, runs = 10)
+    q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False)
+
+    q_.performance_los()
+
+    #fc.calculate_friends("intervention_data.csv", window_ = 5)
+
+
+    # q_2.simulate_q(customers = 100000, runs = 1)
+    q_2.simulate_q(customers = 10000, runs = 10)
+
+    q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
+    q_2.performance_los()
+    '''
+
     q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0,1], probs = [0.5,0.5],
                                          mus = [0.5,2], prob_speedup=[0.3,0.0], mus_speedup=[5,2],
                                          servers = 2)
