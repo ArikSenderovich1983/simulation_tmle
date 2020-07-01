@@ -2,7 +2,7 @@ import pandas as pd
 import os
 from q_intervention import *
 
-# test using: 100 customers, 10 runs each
+# test using: 1000 customers, 10 runs each
 def sim2run(nCustomer, nRuns):
 
     # Input parameters
@@ -84,19 +84,26 @@ def sim2run(nCustomer, nRuns):
                             if count == 2: return
                         count+=1
 
-def calculate_sd(data):
-    N = len(data)
-    var = ((np.std(data))**2)*(N/(N-1))
-    return np.sqrt(var)
+def calculate_sd(data_list):
+    sd_list = []
+    for data in data_list:
+        N = len(data)
+        var = ((np.std(data))**2)*(N/(N-1))
+        sd_list.append(np.sqrt(var))
+    return sd_list
 
 # helper function to calculate the average number in queue or system
-def calculate_average_number(data, last_timestamp, queue=True):
-    total_num = 0
+def calculate_average_number(data_list, queue=True):
+    total_num_list = []
     col = 'Number_in_Queue' if queue else 'Number_in_System'
-    for i in range(1, len(data)):
-        area = (data.at[i, 'timestamp'] - data.at[i-1, 'timestamp']) * data.at[i, col]
-        total_num += area
-    return total_num / last_timestamp
+    t_n = data_list[0].at[len(data_list[0]) - 1, 'timestamp']
+    for data in data_list:
+        total_num = 0
+        for i in range(1, len(data)):
+            area = (data.at[i, 'timestamp'] - data.at[i-1, 'timestamp']) * data.at[i, col]
+            total_num += area
+        total_num_list.append(total_num / t_n)
+    return total_num_list
 
 # calculate percentiles
 def calculate_percentiles(data_all, data_C1, data_C2):
@@ -109,8 +116,7 @@ def queue_waiting(directory):
     _, df_all_wiq, _, df_C1_wiq, _, df_C2_wiq = read_in_csv(directory, "data_WIQ_TIS")
     # Mean values and standard deviation calculations, stored as [all, class 1, class 2, ...]
     average_wiq = [np.mean(df_all_wiq['elapsed']), np.mean(df_C1_wiq['elapsed']), np.mean(df_C2_wiq['elapsed'])]
-    average_wiq_sd = [calculate_sd(df_all_wiq['elapsed']), calculate_sd(df_C1_wiq['elapsed']),
-                      calculate_sd(df_C2_wiq['elapsed'])]
+    average_wiq_sd = calculate_sd([df_all_wiq['elapsed'], df_C1_wiq['elapsed'], df_C2_wiq['elapsed']])
     # Percentiles, stored as [10th, 20th, 30th, 40th, 50th, 60th, 70th, 80th, 90th, 100th]
     all_wiq, C1_wiq, C2_wiq = calculate_percentiles(df_all_wiq['elapsed'], df_C1_wiq['elapsed'], df_C2_wiq['elapsed'])
     return average_wiq, average_wiq_sd, all_wiq, C1_wiq, C2_wiq
@@ -119,8 +125,7 @@ def system_time(directory):
     df_all_tis, _, df_C1_tis, _, df_C2_tis, _ = read_in_csv(directory, "data_WIQ_TIS")
     # Mean values and standard deviation calculations, stored as [all, class 1, class 2, ...]
     average_tis = [np.mean(df_all_tis['elapsed']), np.mean(df_C1_tis['elapsed']), np.mean(df_C2_tis['elapsed'])]
-    average_tis_sd = [calculate_sd(df_all_tis['elapsed']), calculate_sd(df_C1_tis['elapsed']),
-                      calculate_sd(df_C2_tis['elapsed'])]
+    average_tis_sd = calculate_sd([df_all_tis['elapsed'], df_C1_tis['elapsed'], df_C2_tis['elapsed']])
     # Percentiles, stored as [10th, 20th, 30th, 40th, 50th, 60th, 70th, 80th, 90th, 100th]
     all_tis, C1_tis, C2_tis = calculate_percentiles(df_all_tis['elapsed'], df_C1_tis['elapsed'], df_C2_tis['elapsed'])
     return average_tis, average_tis_sd, all_tis, C1_tis, C2_tis
@@ -129,11 +134,8 @@ def queue_number(directory):
     df_all_niq, df_C1_niq, df_C2_niq = read_in_csv(directory, "data_NIQ")
     # Mean values and standard deviation calculations, stored ad [all, class 1, class 2, ...]
     # E(NIQ) = sum_i=1_to_n_ [(t_i - t_i-1)*NIQ_i] / t_n
-    t_n = df_all_niq.at[len(df_all_niq) - 1, 'timestamp']
-    average_niq = [calculate_average_number(df_all_niq, t_n, True), calculate_average_number(df_C1_niq, t_n, True),
-                   calculate_average_number(df_C2_niq, t_n, True)]
-    average_niq_sd = [calculate_sd(df_all_niq['Number_in_Queue']), calculate_sd(df_C1_niq['Number_in_Queue']),
-                      calculate_sd(df_C2_niq['Number_in_Queue'])]
+    average_niq = calculate_average_number([df_all_niq, df_C1_niq, df_C2_niq], True)
+    average_niq_sd = calculate_sd([df_all_niq['Number_in_Queue'], df_C1_niq['Number_in_Queue'],df_C2_niq['Number_in_Queue']])
     # Percentiles, stored as [10th, 20th, 30th, 40th, 50th, 60th, 70th, 80th, 90th, 100th]
     all_niq, C1_niq, C2_niq = calculate_percentiles(df_all_niq['Number_in_Queue'], df_C1_niq['Number_in_Queue'], df_C2_niq['Number_in_Queue'])
     return average_niq, average_niq_sd, all_niq, C1_niq, C2_niq
@@ -142,11 +144,8 @@ def system_number(directory):
     df_all_nis, df_C1_nis, df_C2_nis = read_in_csv(directory, "data_NIS")
     # Mean values and standard deviation calculations, stored ad [all, class 1, class 2, ...]
     # E(NIQ) = sum_i=1_to_n_ [(t_i - t_i-1)*NIQ_i] / t_n
-    t_n = df_all_nis.at[len(df_all_nis) - 1, 'timestamp']
-    average_nis = [calculate_average_number(df_all_nis, t_n, False), calculate_average_number(df_C1_nis, t_n, False),
-                   calculate_average_number(df_C2_nis, t_n, False)]
-    average_nis_sd = [calculate_sd(df_all_nis['Number_in_System']), calculate_sd(df_C1_nis['Number_in_System']),
-                      calculate_sd(df_C2_nis['Number_in_System'])]
+    average_nis = calculate_average_number([df_all_nis, df_C1_nis, df_C2_nis], False)
+    average_nis_sd = calculate_sd([df_all_nis['Number_in_System'], df_C1_nis['Number_in_System'],df_C2_nis['Number_in_System']])
     # Percentiles, stored as [10th, 20th, 30th, 40th, 50th, 60th, 70th, 80th, 90th, 100th]
     all_nis, C1_nis, C2_nis = calculate_percentiles(df_all_nis['Number_in_System'], df_C1_nis['Number_in_System'],
                                                     df_C2_nis['Number_in_System'])
@@ -177,7 +176,9 @@ def read_in_csv(directory, filename):
         df_C1_niq, df_C2_niq = df_all_niq[df_all_niq.class_id == 0], df_all_niq[df_all_niq.class_id == 1]
         # reset indices for class 1 and class 2
         df_C1_niq = df_C1_niq.reindex(list(range(df_all_niq.index.min(),df_all_niq.index.max()+1)),fill_value=0)
+        df_C1_niq = df_C1_niq.assign(timestamp=df_all_niq['timestamp'])
         df_C2_niq = df_C2_niq.reindex(list(range(df_all_niq.index.min(),df_all_niq.index.max()+1)),fill_value=0)
+        df_C2_niq = df_C2_niq.assign(timestamp= df_all_niq['timestamp'])
         return df_all_niq, df_C1_niq, df_C2_niq
 
     elif filename == "data_NIS":
@@ -187,7 +188,9 @@ def read_in_csv(directory, filename):
         df_C1_nis, df_C2_nis = df_all_nis[df_all_nis.class_id == 0], df_all_nis[df_all_nis.class_id == 1]
         # reset indices for class 1 and class 2
         df_C1_nis = df_C1_nis.reindex(list(range(df_all_nis.index.min(), df_all_nis.index.max() + 1)), fill_value=0)
+        df_C1_nis = df_C1_nis.assign(timestamp=df_all_nis['timestamp'])
         df_C2_nis = df_C2_nis.reindex(list(range(df_all_nis.index.min(), df_all_nis.index.max() + 1)), fill_value=0)
+        df_C2_nis = df_C2_nis.assign(timestamp=df_all_nis['timestamp'])
         return df_all_nis, df_C1_nis, df_C2_nis
 
     else:
