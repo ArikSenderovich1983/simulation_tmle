@@ -168,11 +168,11 @@ def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci,
     ci3_lower, ci3_upper = [mean_ci[2][i][0] for i in range(len(mean_ci[2]))], [mean_ci[2][i][1] for i in
                                                                                 range(len(mean_ci[0]))]
 
-    ax1.plot(x, y1, label='mu_prime=2')
+    ax1.plot(x, y1, 'b', label='mu_prime=2')
     ax1.fill_between(x, ci1_lower, ci1_upper, color='b', alpha=0.1)
-    ax1.plot(x, y2, label='mu_prime=2.5')
+    ax1.plot(x, y2, 'g', label='mu_prime=2.5')
     ax1.fill_between(x, ci2_lower, ci2_upper, color='g', alpha=0.1)
-    ax1.plot(x, y3, label='mu_prime=3')
+    ax1.plot(x, y3, 'r', label='mu_prime=3')
     ax1.fill_between(x, ci3_lower, ci3_upper, color='r', alpha=0.1)
     ax1.set(xlabel = 'P(speedup)', ylabel = 'Expected Value')
     # ax1.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
@@ -188,11 +188,11 @@ def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci,
         ci90p3_lower, ci90p3_upper = [percentile90_ci[2][i][0] for i in range(len(percentile90_ci[2]))], [
             percentile90_ci[2][i][1] for i in range(len(percentile90_ci[0]))]
 
-        ax2.plot(x, y90p1, label='mu_prime=2')
+        ax2.plot(x, y90p1, 'b', label='mu_prime=2')
         ax2.fill_between(x, ci90p1_lower, ci90p1_upper, color='b', alpha=0.1)
-        ax2.plot(x, y90p2, label='mu_prime=2.5')
+        ax2.plot(x, y90p2, 'g', label='mu_prime=2.5')
         ax2.fill_between(x, ci90p2_lower, ci90p2_upper, color='g', alpha=0.1)
-        ax2.plot(x, y90p3, label='mu_prime=3')
+        ax2.plot(x, y90p3, 'r', label='mu_prime=3')
         ax2.fill_between(x, ci90p3_lower, ci90p3_upper, color='r', alpha=0.1)
         ax2.set(xlabel='P(speedup)', ylabel='90th Percentile')
         # ax2.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
