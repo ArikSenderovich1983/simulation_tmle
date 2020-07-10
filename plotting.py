@@ -16,7 +16,6 @@ def simulation(nCustomer, nReplications):
     mu_prime_list = np.array([2, 2.5, 3])
     p_intervention_list = np.linspace(0, 1, 11)
     confidence_level = 0.95
-    count = 0
 
     # Calculate the value of rho, run the simulation only if rho < 1
     # rho = lam / mu
@@ -43,20 +42,20 @@ def simulation(nCustomer, nReplications):
             los_mean_all, los_mean_all_ci, los_mean_percentile90_all, los_mean_percentile90_all_ci = los(q_,
                                                                                                          confidence_level,
                                                                                                          nReplications)
-            tis_mean[i-1, j-1], tis_ci[i-1, j-1] = los_mean_all, los_mean_all_ci
-            tis_90per[i-1, j-1], tis_90per_ci[i-1, j-1] = los_mean_percentile90_all, los_mean_percentile90_all_ci
+            tis_mean[i, j], tis_ci[i, j] = los_mean_all, los_mean_all_ci
+            tis_90per[i, j], tis_90per_ci[i, j] = los_mean_percentile90_all, los_mean_percentile90_all_ci
 
             # Number in Queue
             wiq_num_all_classes, wiq_num_all_classes_ci = wiq_nis(q_, confidence_level, nReplications, queue=True)
-            wiq_mean[i - 1, j - 1], wiq_ci[i - 1, j - 1] = wiq_num_all_classes, wiq_num_all_classes_ci
+            wiq_mean[i, j], wiq_ci[i, j] = wiq_num_all_classes, wiq_num_all_classes_ci
 
             # Number in System
             nis_num_all_classes, nis_num_all_classes_ci = wiq_nis(q_, confidence_level, nReplications, queue=False)
-            nis_mean[i - 1, j - 1], nis_ci[i - 1, j - 1] = nis_num_all_classes, nis_num_all_classes_ci
+            nis_mean[i, j], nis_ci[i, j] = nis_num_all_classes, nis_num_all_classes_ci
 
-    # plot_mean_90percentile_with_CI(tis_mean, tis_ci, tis_90per, tis_90per_ci,
-    #                                "Time in System With 95% Confidence Interval, {} Customers, {} Replications".format(
-    #                                    nCustomer, nReplications))
+    plot_mean_90percentile_with_CI(tis_mean, tis_ci, tis_90per, tis_90per_ci,
+                                   "Time in System With 95% Confidence Interval, {} Customers, {} Replications".format(
+                                       nCustomer, nReplications))
     plot_mean_90percentile_with_CI(wiq_mean, wiq_ci, None, None,
                                    "Number in Queue With 95% Confidence Interval, {} Customers, {} Replications".format(
                                        nCustomer, nReplications))
@@ -170,13 +169,14 @@ def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci,
                                                                                 range(len(mean_ci[0]))]
 
     ax1.plot(x, y1, label='mu_prime=2')
-    ax1.fill_between(x, ci1_lower, ci1_upper, color='b', alpha=0.1, label="95CI")
+    ax1.fill_between(x, ci1_lower, ci1_upper, color='b', alpha=0.1)
     ax1.plot(x, y2, label='mu_prime=2.5')
-    ax1.fill_between(x, ci2_lower, ci2_upper, color='g', alpha=0.1, label="95CI")
+    ax1.fill_between(x, ci2_lower, ci2_upper, color='g', alpha=0.1)
     ax1.plot(x, y3, label='mu_prime=3')
-    ax1.fill_between(x, ci3_lower, ci3_upper, color='r', alpha=0.1, label="95CI")
+    ax1.fill_between(x, ci3_lower, ci3_upper, color='r', alpha=0.1)
     ax1.set(xlabel = 'P(speedup)', ylabel = 'Expected Value')
-    ax1.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
+    # ax1.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
+    ax1.legend()
 
     # Plotting 90th Percentiles
     if percentile90 is not None and percentile90_ci is not None:
@@ -189,18 +189,19 @@ def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci,
             percentile90_ci[2][i][1] for i in range(len(percentile90_ci[0]))]
 
         ax2.plot(x, y90p1, label='mu_prime=2')
-        ax2.fill_between(x, ci90p1_lower, ci90p1_upper, color='b', alpha=0.1, label="95CI")
+        ax2.fill_between(x, ci90p1_lower, ci90p1_upper, color='b', alpha=0.1)
         ax2.plot(x, y90p2, label='mu_prime=2.5')
-        ax2.fill_between(x, ci90p2_lower, ci90p2_upper, color='g', alpha=0.1, label="95CI")
+        ax2.fill_between(x, ci90p2_lower, ci90p2_upper, color='g', alpha=0.1)
         ax2.plot(x, y90p3, label='mu_prime=3')
-        ax2.fill_between(x, ci90p3_lower, ci90p3_upper, color='r', alpha=0.1, label="95CI")
+        ax2.fill_between(x, ci90p3_lower, ci90p3_upper, color='r', alpha=0.1)
         ax2.set(xlabel='P(speedup)', ylabel='90th Percentile')
-        ax2.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
+        # ax2.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
+        ax2.legend()
 
     save_path = os.path.join(os.getcwd(), plot_type + '.png')
     plt.savefig(save_path, dpi=600)
 
 
 if __name__ == "__main__":
-    nCustomer, nReplications = 10000, 300
+    nCustomer, nReplications = 10000, 30
     simulation(nCustomer, nReplications)
