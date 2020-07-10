@@ -25,12 +25,25 @@ class multi_class_single_station_fcfs:
 
         # initialize trackers with relevant statistics, assume all start empty
         self.data = []  # event logs
-        self.queue_tracker = [[(0,0)] for c in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
-        self.los_tracker = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
-        self.nis_tracker = [[(0,0)] for c in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
+        self.los_tracker = []  # [[[timestamp, timestamp, ...], ...]]
+        self.queue_tracker = []  # [[[(timestamp, Nq), (timestamp, Nq), ...], ...]]
+        self.nis_tracker = []  # [[[(timestamp, NIS), (timestamp, NIS), ...], ...]]
         # self.trackers = []  # [(los_tracker, queue_tracker), (los_tracker, queue_tracker), ...]
         # self.friends = []
         self.sla_levels = []
+
+    # Getters
+    def get_classes(self):
+        return self.classes_
+
+    def get_los_tracker(self):
+        return self.los_tracker
+
+    def get_queue_tracker(self):
+        return self.queue_tracker
+
+    def get_nis_tracker(self):
+        return self.nis_tracker
 
 
     def simulate_q(self, customers, runs):
@@ -67,9 +80,9 @@ class multi_class_single_station_fcfs:
 
 
             event_log = []
-            self.queue_tracker = [[(0, 0)] for c in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
-            self.nis_tracker = [[(0, 0)] for c in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
-            self.los_tracker = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
+            queue_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
+            nis_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
+            los_tr = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
             # four types of events: arrival, departure = 'a', 'd' queue and service (queue start and service start)
             # every tuple is (timestamp, event_type, customer id, server_id)
             event_calendar = [(a, 'a', i, -1) for i,a in enumerate(sim_arrival_times)]
@@ -94,12 +107,12 @@ class multi_class_single_station_fcfs:
                     event_log.append((ts_, 'a', id_, interv_[id_], classes_[id_]))
 
                     # update nis_tracker - add 1 to the class in which the customer belongs to
-                    self.nis_tracker[classes_[id_]].append((ts_, self.nis_tracker[classes_[id_]][-1][1] + 1))
+                    nis_tr[classes_[id_]].append((ts_, nis_tr[classes_[id_]][-1][1] + 1))
 
                     # update nis_tracker for all other classes, NIS stays the same
                     for class_ in self.classes_:
                         if classes_[id_] != class_:
-                            self.nis_tracker[class_].append((ts_, self.nis_tracker[class_][-1][1]))
+                            nis_tr[class_].append((ts_, nis_tr[class_][-1][1]))
 
                     # if there is a room in service
                     if sum(in_service) < self.servers:
@@ -119,7 +132,7 @@ class multi_class_single_station_fcfs:
                         event_log.append((ts_+service_times[id_], 'd', id_, interv_[id_], classes_[id_]))
 
                         # update los_tracker, los = current time + service time - arrival time
-                        self.los_tracker[classes_[id_]].append(ts_ + service_times[id_] - sim_arrival_times[id_])
+                        los_tr[classes_[id_]].append(ts_ + service_times[id_] - sim_arrival_times[id_])
                         # temp_friends[id_] = []
 
                     # if there is no room on servers
@@ -133,13 +146,12 @@ class multi_class_single_station_fcfs:
                         event_log.append((ts_, 'q', id_, interv_[id_], classes_[id_]))
 
                         # update queue_tracker - add 1 to the class in which the customer belongs to
-                        self.queue_tracker[classes_[id_]].append((ts_,self.queue_tracker[classes_[id_]][-1][1] + 1))
+                        queue_tr[classes_[id_]].append((ts_,queue_tr[classes_[id_]][-1][1] + 1))
 
                         # update queue_tracker for all other classes, Nq stays the same
                         for class_ in self.classes_:
                             if classes_[id_]!=class_:
-                                self.queue_tracker[class_].append(
-                                    (ts_, self.queue_tracker[class_][-1][1]))
+                                queue_tr[class_].append((ts_, queue_tr[class_][-1][1]))
 
 
                 # departure event happens
@@ -147,12 +159,12 @@ class multi_class_single_station_fcfs:
                     in_service[server_] = 0  # free the server
                     # server_assignment[server_] = 0
                     # update nis_tracker - subtract 1 to the class in which the customer belongs to
-                    self.nis_tracker[classes_[id_]].append((ts_, self.nis_tracker[classes_[id_]][-1][1] - 1))
+                    nis_tr[classes_[id_]].append((ts_, nis_tr[classes_[id_]][-1][1] - 1))
 
                     # update nis_tracker for all other classes, NIS stays the same
                     for class_ in self.classes_:
                         if classes_[id_] != class_:
-                            self.nis_tracker[class_].append((ts_, self.nis_tracker[class_][-1][1]))
+                            nis_tr[class_].append((ts_, nis_tr[class_][-1][1]))
 
                     # if there is still customer in the queue
                     if len(list(queue)) > 0:
@@ -171,16 +183,19 @@ class multi_class_single_station_fcfs:
                         hq.heappush(event_calendar, (ts_ + service_times[id_], 'd', id_,server_))
 
                         # update los_tracker, queue_tracker (subtract 1)
-                        self.los_tracker[classes_[id_]].append(ts_ + service_times[id_] - sim_arrival_times[id_])
-                        self.queue_tracker[classes_[id_]].append((ts_,self.queue_tracker[classes_[id_]][-1][1] - 1))
+                        los_tr[classes_[id_]].append(ts_ + service_times[id_] - sim_arrival_times[id_])
+                        queue_tr[classes_[id_]].append((ts_, queue_tr[classes_[id_]][-1][1] - 1))
 
                         # update the queue_tracker for all other classes, Nq stays the same
                         for class_ in self.classes_:
                             if classes_[id_]!=class_:
-                                self.queue_tracker[class_].append((ts_, self.queue_tracker[class_][-1][1]))
+                                queue_tr[class_].append((ts_, queue_tr[class_][-1][1]))
 
-            # add the event_log to "data"
+            # add the event_log to "data", and append trackers for each run to overall trackers
             self.data.append(event_log)
+            self.los_tracker.append(los_tr)
+            self.nis_tracker.append(nis_tr)
+            self.queue_tracker.append(queue_tr)
             # self.trackers.append((self.los_tracker,self.queue_tracker))
             # self.friends.append(temp_friends)
 
@@ -200,7 +215,7 @@ class multi_class_single_station_fcfs:
 
         # iterate through each event log (simulation run) in simulation data
         for j,e_l in enumerate(self.data):
-            print("Run #"+str(j+1))
+            # print("Run #"+str(j+1))
 
             # creating a data-frame to manage the event logs
             # one per simulation run - we will later want to compare interventions
@@ -241,8 +256,8 @@ class multi_class_single_station_fcfs:
                 # df.at[i,'nFriends'] = len(temp_friends[df.at[i, 'id']])
 
             offset = offset + max(df['timestamp']) # the next simulation run starts at the offset time
-            print('Average LOS per run: ')
-            print(np.mean(df[df.event_type == 'd']['elapsed']))
+            # print('Average LOS per run: ')
+            # print(np.mean(df[df.event_type == 'd']['elapsed']))
 
             df['SLA'] = 0
             if quant_flag:
@@ -254,14 +269,21 @@ class multi_class_single_station_fcfs:
             for i in range(len(df)):
                 if df.at[i, 'elapsed'] > sla_:
                     df.at[i, 'SLA'] = 1
-            print("Sla level:")
-            print(sum(df[df.event_type == 'd']['SLA']) / len(df[df.event_type == 'd']))
+            # print("Sla level:")
+            # print(sum(df[df.event_type == 'd']['SLA']) / len(df[df.event_type == 'd']))
 
             # generate csv files
             if write_file:
                 # save generated data in a folder in the current working directory
                 cwd = os.getcwd() # get current working directory
-                folder = "Lambda{}Mu1{}Mu2{}p1{}ProbIntervention{}Mu1Speedup{}Mu2Speedup{}".format(self.lambda_,
+                # single type of customers
+                if len(self.mus) == 1:
+                    folder = "Lambda{}Mu{}ProbIntervention{}MuSpeedup{}".format(self.lambda_, self.mus[0],
+                                                                                self.probs_speedup[0],
+                                                                                self.mus_speedup[0])
+                # two types of customers
+                elif len(self.mus) == 2:
+                    folder = "Lambda{}Mu1{}Mu2{}p1{}ProbIntervention{}Mu1Speedup{}Mu2Speedup{}".format(self.lambda_,
                                                                                                    self.mus[0],
                                                                                                    self.mus[1],
                                                                                                    self.probs[0],
@@ -269,6 +291,8 @@ class multi_class_single_station_fcfs:
                                                                                                        0],
                                                                                                    self.mus_speedup[0],
                                                                                                    self.mus_speedup[1])
+                # todo: more than 2 types of customers?
+
                 directory = os.path.join(cwd, folder)
                 if not os.path.exists(directory):
                     os.makedirs(directory)
@@ -312,28 +336,42 @@ class multi_class_single_station_fcfs:
             # file_2: Queue/Number
             filename = "data_NIQ"
             save_path = os.path.join(directory, filename + ".csv")
-            df_niq = pd.DataFrame(columns=['timestamp', 'class_id', 'Number_in_Queue'])
-            for class_ in self.classes_:
-                for i, queue in enumerate(self.queue_tracker[class_]):
-                    df_niq.loc[i*(class_+1)] = [queue[0]] + [class_] + [queue[1]]
+            for r, queue_tr in enumerate(self.queue_tracker):
+                df_niq = pd.DataFrame(columns=['run', 'timestamp', 'class_id', 'Number_in_Queue'])
+                offset = 0
+                for class_ in self.classes_:
+                    for i, queue in enumerate(queue_tr[class_]):
+                        df_niq.loc[i + offset] = [r+1, queue[0], class_, queue[1]]
+                        offset += len(queue_tr[class_])
 
-            df_niq.sort_values(by=['timestamp'], inplace=True)  # order by timestamp
-            df_niq.reset_index(drop=True, inplace=True)
-            df_niq.to_csv(save_path, index=False, header=True)
+                df_niq.sort_values(by=['timestamp'], inplace=True)  # order by timestamp
+                df_niq.reset_index(drop=True, inplace=True)
+
+                if r == 0:
+                    df_niq.to_csv(save_path, index=False, header=True)
+                else:
+                    df_niq.to_csv(save_path, mode='a', index=False, header=False)
 
             # file_3: System/Number
             filename = "data_NIS"
             save_path = os.path.join(directory, filename + ".csv")
-            df_nis = pd.DataFrame(columns=['timestamp', 'class_id', 'Number_in_System'])
-            for class_ in self.classes_:
-                for i, system in enumerate(self.nis_tracker[class_]):
-                    df_nis.loc[i*(class_+1)] = [system[0]] + [class_] + [system[1]]
+            for r, nis_tr in enumerate(self.nis_tracker):
+                df_nis = pd.DataFrame(columns=['run', 'timestamp', 'class_id', 'Number_in_System'])
+                offset = 0
+                for class_ in self.classes_:
+                    for i, system in enumerate(nis_tr[class_]):
+                        df_nis.loc[i + offset] = [r+1, system[0], class_, system[1]]
+                        offset += len(nis_tr[class_])
 
-            df_nis.sort_values(by=['timestamp'], inplace=True)  # order by timestamp
-            df_nis.reset_index(drop=True, inplace=True)
-            df_nis.to_csv(save_path,index=False,header=True)
+                df_nis.sort_values(by=['timestamp'], inplace=True)  # order by timestamp
+                df_nis.reset_index(drop=True, inplace=True)
 
-        print("Average SLA value: "+str(np.mean(self.sla_levels)))
+                if r == 0:
+                    df_nis.to_csv(save_path,index=False,header=True)
+                else:
+                    df_nis.to_csv(save_path, mode='a', index=False, header=False)
+
+        # print("Average SLA value: "+str(np.mean(self.sla_levels)))
 
 
     def performance_los(self):
@@ -341,35 +379,36 @@ class multi_class_single_station_fcfs:
         run_avg_los = 0
         run_avg_los_class = [0 for c in self.classes_]
 
-        for run, _ in enumerate(self.queue_tracker):
+        for run, queue in enumerate(self.queue_tracker):
             print("Run #" + str(run+1))
-            total_q_list = [sum([self.queue_tracker[c][i][1] for c in range(len(self.classes_))]) for i in range(len(self.queue_tracker[0]))]
+            total_q_list = [sum([queue[c][i][1] for c in range(len(self.classes_))]) for i in range(len(queue[0]))]
             print("Max QL is: " + str(max(total_q_list)))
 
             if run == 0:
                 pw.plot_K_graphs([total_q_list], ['total_queue_length'], 'total_q over time', 'queue_len', ['b'], False,
                                  0, [], [])
 
+        for run, los in enumerate(self.los_tracker):
+            print("Run #" + str(run + 1))
             total_los_run = []
             for j, c in enumerate(self.classes_):
-                los_tr = self.los_tracker[c]
+                los_tr = los[c]
                 if len(los_tr) > 0:
                     print("LOS for class " + str(c) + ":")
                     los_c = np.mean([los_tr[i] for i in range(len(los_tr))])
                     print(los_c)
                     total_los_run.extend(los_tr)
                     run_avg_los_class[c] += los_c
-                if len(total_los_run) > 0:
-                    print("LOS for all classes: ")
-                    avg_run_los = np.mean(total_los_run)
-                    print(avg_run_los)
-                    run_avg_los += avg_run_los
-            print("LOS across runs: " + str(run_avg_los / len(self.los_tracker)))
-            for c in self.classes_:
-                print("LOS per class " + str(c) + ": " + str(run_avg_los_class[c] / len(self.los_tracker)))
+            if len(total_los_run) > 0:
+                print("LOS for all classes: ")
+                avg_run_los = np.mean(total_los_run)
+                print(avg_run_los)
+                run_avg_los += avg_run_los
+        print("LOS across runs: " + str(run_avg_los / len(self.los_tracker)))
+        for c in self.classes_:
+            print("LOS per class " + str(c) + ": " + str(run_avg_los_class[c] / len(self.los_tracker)))
 
 if __name__ == "__main__":
-    '''
     q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
                                          mus = [1.1], prob_speedup=[0.5], mus_speedup=[11],
                                          servers = 1)
@@ -394,7 +433,6 @@ if __name__ == "__main__":
     q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
     q_2.performance_los()
     '''
-
     q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0,1], probs = [0.5,0.5],
                                          mus = [0.5,2], prob_speedup=[0.3,0.0], mus_speedup=[5,2],
                                          servers = 2)
@@ -419,3 +457,4 @@ if __name__ == "__main__":
 
     # q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
     # q_2.performance_los()
+    '''
