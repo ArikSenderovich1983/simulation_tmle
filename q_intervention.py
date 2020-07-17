@@ -23,8 +23,11 @@ class multi_class_single_station_fcfs:
         self.mus_speedup = kwargs.get('mus_speedup', self.mus)  # service rate with intervention
         self.servers = kwargs.get('servers', 1)  # number of servers
 
+        self.laplace_params = kwargs.get('laplace_params', [0, 0.5])  # location and scale parameters
+
         # initialize trackers with relevant statistics, assume all start empty
         self.data = []  # event logs
+        self.wait_time_tracker = []  # [[[timestamp, timestamp, ...], ...]]
         self.los_tracker = []  # [[[timestamp, timestamp, ...], ...]]
         self.queue_tracker = []  # [[[(timestamp, Nq), (timestamp, Nq), ...], ...]]
         self.nis_tracker = []  # [[[(timestamp, NIS), (timestamp, NIS), ...], ...]]
@@ -39,6 +42,9 @@ class multi_class_single_station_fcfs:
     def get_los_tracker(self):
         return self.los_tracker
 
+    def get_wait_time_tracker(self):
+        return self.wait_time_tracker
+
     def get_queue_tracker(self):
         return self.queue_tracker
 
@@ -46,7 +52,7 @@ class multi_class_single_station_fcfs:
         return self.nis_tracker
 
 
-    def simulate_q(self, customers, runs):
+    def simulate_q(self, customers, runs, system_type=1):
 
         np.random.seed(3)  # set random seed
 
@@ -59,17 +65,37 @@ class multi_class_single_station_fcfs:
             classes_ = []
             interv_ = []
 
+            # system_type: 1 = M/G/1, 2 = G/G/1 (appointment)
             for c in range(customers):
-                # simulating next arrival time
-                sim_arrival_times.append(t_+ Distribution(dist_type=DistributionType.exponential, rate=self.lambda_).sample())
+                # simulate next arrival
+                if system_type == 1:
+                    # next arrival time: t_ + inter-arrival_time
+                    # draw an inter-arrival time from exponential distribution
+                    sim_arrival_times.append(
+                        t_ + Distribution(dist_type=DistributionType.exponential, rate=self.lambda_).sample())
+                elif system_type == 2:
+                    # next arrival time: a' = a + noise, noise here is punctuality
+                    # draw a deterministic inter-arrival time from exponential distribution
+                    deterministic_arrival = Distribution(dist_type=DistributionType.exponential,
+                                                         rate=self.lambda_).sample()
+                    done = False
+                    while not done:
+                        # draw a punctuality time from laplace distribution
+                        punctuality = Distribution(dist_type=DistributionType.laplace, location=self.laplace_params[0],
+                                                   scale=self.laplace_params[1]).sample()
+                        next_arrival_time = t_ + deterministic_arrival + punctuality
+                        if next_arrival_time >= 0:
+                            sim_arrival_times.append(next_arrival_time)
+                            done = True
 
                 # move forward the timestamp
                 t_ = sim_arrival_times[len(sim_arrival_times)-1]
+
                 # sampling the class of arriving patient
                 c_ = np.random.choice(self.classes_, p=self.probs)
                 classes_.append(c_)
-                # sampling whether intervention or not
 
+                # sampling whether intervention or not
                 interv_.append(np.random.choice(np.array([0,1]),
                                                 p = np.array([1-self.probs_speedup[c_], self.probs_speedup[c_]])))
                 if interv_[len(interv_)-1]==0:
@@ -78,11 +104,12 @@ class multi_class_single_station_fcfs:
                     service_times.append(
                         Distribution(dist_type=DistributionType.exponential, rate=self.mus_speedup[c_]).sample())
 
-
+            print("arrival_times for system_type {}".format(system_type), sim_arrival_times)
             event_log = []
             queue_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
             nis_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
             los_tr = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
+            wait_tr = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
             # four types of events: arrival, departure = 'a', 'd' queue and service (queue start and service start)
             # every tuple is (timestamp, event_type, customer id, server_id)
             event_calendar = [(a, 'a', i, -1) for i,a in enumerate(sim_arrival_times)]
@@ -131,6 +158,8 @@ class multi_class_single_station_fcfs:
                         event_log.append((ts_, 's', id_, interv_[id_], classes_[id_]))
                         event_log.append((ts_+service_times[id_], 'd', id_, interv_[id_], classes_[id_]))
 
+                        # update wait_time_tracker, wait_time = current time - arrival time
+                        wait_tr[classes_[id_]].append(ts_ - sim_arrival_times[id_])
                         # update los_tracker, los = current time + service time - arrival time
                         los_tr[classes_[id_]].append(ts_ + service_times[id_] - sim_arrival_times[id_])
                         # temp_friends[id_] = []
@@ -182,7 +211,8 @@ class multi_class_single_station_fcfs:
                         # add a departure event to the event_calendar
                         hq.heappush(event_calendar, (ts_ + service_times[id_], 'd', id_,server_))
 
-                        # update los_tracker, queue_tracker (subtract 1)
+                        # update wait_time_tracker, los_tracker, queue_tracker (subtract 1)
+                        wait_tr[classes_[id_]].append(ts_ - sim_arrival_times[id_])
                         los_tr[classes_[id_]].append(ts_ + service_times[id_] - sim_arrival_times[id_])
                         queue_tr[classes_[id_]].append((ts_, queue_tr[classes_[id_]][-1][1] - 1))
 
@@ -193,6 +223,7 @@ class multi_class_single_station_fcfs:
 
             # add the event_log to "data", and append trackers for each run to overall trackers
             self.data.append(event_log)
+            self.wait_time_tracker.append(wait_tr)
             self.los_tracker.append(los_tr)
             self.nis_tracker.append(nis_tr)
             self.queue_tracker.append(queue_tr)
@@ -409,29 +440,35 @@ class multi_class_single_station_fcfs:
             print("LOS per class " + str(c) + ": " + str(run_avg_los_class[c] / len(self.los_tracker)))
 
 if __name__ == "__main__":
-    q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
-                                         mus = [1.1], prob_speedup=[0.5], mus_speedup=[11],
-                                         servers = 1)
+    # q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+    #                                      mus = [1.1], prob_speedup=[0.5], mus_speedup=[11],
+    #                                      servers = 1)
+    #
+    # q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+    #                                      mus = [1.1], prob_speedup=[1.0], mus_speedup=[11],
+    #                                      servers = 1)
+    #
+    #
+    # # q_.simulate_q(customers = 100000, runs = 1)
+    # q_.simulate_q(customers = 10000, runs = 10)
+    # q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False)
+    #
+    # q_.performance_los()
+    #
+    # #fc.calculate_friends("intervention_data.csv", window_ = 5)
+    #
+    #
+    # # q_2.simulate_q(customers = 100000, runs = 1)
+    # q_2.simulate_q(customers = 10000, runs = 10)
+    #
+    # q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
+    # q_2.performance_los()
 
-    q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
-                                         mus = [1.1], prob_speedup=[1.0], mus_speedup=[11],
-                                         servers = 1)
-
-
-    # q_.simulate_q(customers = 100000, runs = 1)
-    q_.simulate_q(customers = 10000, runs = 10)
-    q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False)
-
-    q_.performance_los()
-
-    #fc.calculate_friends("intervention_data.csv", window_ = 5)
-
-
-    # q_2.simulate_q(customers = 100000, runs = 1)
-    q_2.simulate_q(customers = 10000, runs = 10)
-
-    q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
-    q_2.performance_los()
+    q_3 = multi_class_single_station_fcfs(lambda_=1, classes=[0], probs=[1.0],
+                                         mus=[1.1], prob_speedup=[0.5], mus_speedup=[11],
+                                         servers=1, laplace_params=[0, 0.5])
+    q_3.simulate_q(customers=100, runs=3, system_type=1)
+    q_3.generate_data(sla_=0.9, quant_flag=True, write_file=True)
     '''
     q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0,1], probs = [0.5,0.5],
                                          mus = [0.5,2], prob_speedup=[0.3,0.0], mus_speedup=[5,2],

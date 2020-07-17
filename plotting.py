@@ -22,7 +22,7 @@ def simulation(nCustomer, nReplications):
     # if rho >= 1:
     #     return
 
-    # keep track of statistics, 3 values of mu, 11 values of P(intervention)
+    # Keep track of statistics, 3 values of mu, 11 values of P(intervention)
     tis_mean, wiq_mean, niq_mean, nis_mean = np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11))
     tis_ci, wiq_ci, niq_ci, nis_ci = np.zeros((3,11),dtype='f,f'), np.zeros((3,11),dtype='f,f'), np.zeros((3,11),dtype='f,f'), np.zeros((3,11),dtype='f,f')
     tis_90per, wiq_90per, niq_90per, nis_90per = np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11))
@@ -39,118 +39,192 @@ def simulation(nCustomer, nReplications):
             q_.generate_data(sla_=0.9, quant_flag=True, write_file=False)
 
             # Time in System
-            los_mean_all, los_mean_all_ci, los_mean_percentile90_all, los_mean_percentile90_all_ci = los(q_,
-                                                                                                         confidence_level,
-                                                                                                         nReplications)
+            los_mean_all, los_mean_all_ci, los_mean_percentile90_all, los_mean_percentile90_all_ci = los_wiq(q_,
+                                                                                                             confidence_level,
+                                                                                                             nReplications,
+                                                                                                             los=True)
             tis_mean[i, j], tis_ci[i, j] = los_mean_all, los_mean_all_ci
             tis_90per[i, j], tis_90per_ci[i, j] = los_mean_percentile90_all, los_mean_percentile90_all_ci
 
+            # Wait Time in Queue
+            wiq_mean_all, wiq_mean_all_ci, wiq_mean_percentile90_all, wiq_mean_percentile90_all_ci = los_wiq(q_,
+                                                                                                             confidence_level,
+                                                                                                             nReplications,
+                                                                                                             los=False)
+            wiq_mean[i, j], wiq_ci[i, j] = wiq_mean_all, wiq_mean_all_ci
+            wiq_90per[i, j], wiq_90per_ci[i, j] = wiq_mean_percentile90_all, wiq_mean_percentile90_all_ci
+
             # Number in Queue
-            wiq_num_all_classes, wiq_num_all_classes_ci = wiq_nis(q_, confidence_level, nReplications, queue=True)
-            wiq_mean[i, j], wiq_ci[i, j] = wiq_num_all_classes, wiq_num_all_classes_ci
+            niq_num_all_classes, niq_num_all_classes_ci, niq_mean_percentile90_all, niq_mean_percentile90_all_ci = niq_nis(
+                q_, confidence_level, nReplications, queue=True)
+            niq_mean[i, j], niq_ci[i, j] = niq_num_all_classes, niq_num_all_classes_ci
+            niq_90per[i, j], niq_90per_ci[i, j] = niq_mean_percentile90_all, niq_mean_percentile90_all_ci
 
             # Number in System
-            nis_num_all_classes, nis_num_all_classes_ci = wiq_nis(q_, confidence_level, nReplications, queue=False)
+            nis_num_all_classes, nis_num_all_classes_ci, nis_mean_percentile90_all, nis_mean_percentile90_all_ci = niq_nis(
+                q_, confidence_level, nReplications, queue=False)
             nis_mean[i, j], nis_ci[i, j] = nis_num_all_classes, nis_num_all_classes_ci
+            nis_90per[i, j], nis_90per_ci[i, j] = nis_mean_percentile90_all, nis_mean_percentile90_all_ci
 
+    # Plotting Graphs
     plot_mean_90percentile_with_CI(tis_mean, tis_ci, tis_90per, tis_90per_ci,
                                    "Time in System With 95% Confidence Interval, {} Customers, {} Replications".format(
                                        nCustomer, nReplications))
-    plot_mean_90percentile_with_CI(wiq_mean, wiq_ci, None, None,
+    plot_mean_90percentile_with_CI(wiq_mean, wiq_ci, wiq_90per, wiq_90per_ci,
+                                   "Wait Time in Queue With 95% Confidence Interval, {} Customers, {} Replications".format(
+                                       nCustomer, nReplications))
+    plot_mean_90percentile_with_CI(niq_mean, niq_ci, niq_90per, niq_90per_ci,
                                    "Number in Queue With 95% Confidence Interval, {} Customers, {} Replications".format(
                                        nCustomer, nReplications))
-    plot_mean_90percentile_with_CI(nis_mean, nis_ci, None, None,
+    plot_mean_90percentile_with_CI(nis_mean, nis_ci, nis_90per, nis_90per_ci,
                                    "Number in System With 95% Confidence Interval, {} Customers, {} Replications".format(
                                        nCustomer, nReplications))
 
 
-def los(queueing_system, confidence_level, n):
+def los_wiq(queueing_system, confidence_level, n, los=False):
 
-    los_tracker = queueing_system.get_los_tracker()
-    avg_los_by_class, avg_los_all_classes = [], []
-    los_percentile90_by_class, los_percentile90_all_classes = [], []
+    if los:
+        tracker = queueing_system.get_los_tracker()
+    else:
+        tracker = queueing_system.get_wait_time_tracker()
 
-    for rep in los_tracker:
+    avg_time_by_class, avg_time_all_classes = [], []
+    time_percentile90_by_class, time_percentile90_all_classes = [], []
+
+    for rep in tracker:
         # Individual Classes
-        avg_los_classes = np.mean(rep, axis=1)
-        avg_los_by_class.append(avg_los_classes)
-        los_percentile90_classes = np.percentile(rep, 90, axis=1)
-        los_percentile90_by_class.append(los_percentile90_classes)
+        avg_time_classes = np.mean(rep, axis=1)
+        avg_time_by_class.append(avg_time_classes)
+        time_percentile90_classes = np.percentile(rep, 90, axis=1)
+        time_percentile90_by_class.append(time_percentile90_classes)
         # All Classes
-        avg_los_all = np.mean(rep)
-        avg_los_all_classes.append(avg_los_all)
-        los_percentile90_all = np.percentile(rep, 90)
-        los_percentile90_all_classes.append(los_percentile90_all)
+        avg_time_all = np.mean(rep)
+        avg_time_all_classes.append(avg_time_all)
+        time_percentile90_all = np.percentile(rep, 90)
+        time_percentile90_all_classes.append(time_percentile90_all)
 
-    # Individual Classes
-    # Expected Value
-    los_mean_by_class = np.mean(avg_los_by_class, axis=0)
-    # los_mean_by_class_var = ((np.std(avg_los_by_class, axis=0))**2)*(n/(n - 1))
-    # los_mean_by_class_sd = np.sqrt(los_mean_by_class_var)
-    los_mean_by_class_stderr = sem(avg_los_by_class, axis=0)
-    los_mean_by_class_ci = t.interval(confidence_level, n - 1, los_mean_by_class, los_mean_by_class_stderr)
-    # 90th Percentiles
-    los_mean_percentile90_by_class = np.mean(los_percentile90_by_class, axis=0)
-    los_mean_percentile90_by_class_stderr = sem(los_percentile90_by_class, axis=0)
-    los_mean_percentile90_by_class_ci = t.interval(confidence_level, n - 1, los_mean_percentile90_by_class, los_mean_percentile90_by_class_stderr)
+    # Individual Classes - 1) expected value with CI, 2) 90th percentile with CI
+    time_mean_by_class, time_mean_by_class_ci = compute_mean_and_CI(avg_time_by_class, confidence_level, n,
+                                                                  all_classes=False)
+    time_mean_percentile90_by_class, time_mean_percentile90_by_class_ci = compute_mean_and_CI(time_percentile90_by_class,
+                                                                                            confidence_level, n,
+                                                                                            all_classes=False)
+    # time_mean_by_class_var = ((np.std(avg_time_by_class, axis=0))**2)*(n/(n - 1))
+    # time_mean_by_class_sd = np.sqrt(time_mean_by_class_var)
 
-    # All Classes
-    # Expected Value
-    los_mean_all = np.mean(avg_los_all_classes)
-    los_mean_all_stderr = sem(avg_los_all_classes)
-    los_mean_all_ci = t.interval(confidence_level, n - 1, los_mean_all, los_mean_all_stderr)
-    # 90th Percentile
-    los_mean_percentile90_all = np.mean(los_percentile90_all_classes)
-    los_mean_percentile90_all_stderr = sem(los_percentile90_all_classes)
-    los_mean_percentile90_all_ci = t.interval(confidence_level, n - 1, los_mean_percentile90_all, los_mean_percentile90_all_stderr)
+    # All Classes - 1) expected value with CI, 2) 90th percentile with CI
+    time_mean_all, time_mean_all_ci = compute_mean_and_CI(avg_time_all_classes, confidence_level, n,
+                                                                        all_classes=True)
+    time_mean_percentile90_all, time_mean_percentile90_all_ci = compute_mean_and_CI(time_percentile90_all_classes,
+                                                                                    confidence_level, n,
+                                                                                    all_classes=True)
 
-    return los_mean_all, los_mean_all_ci, los_mean_percentile90_all, los_mean_percentile90_all_ci
+    return time_mean_all, time_mean_all_ci, time_mean_percentile90_all, time_mean_percentile90_all_ci
 
 
-def wiq_nis(queueing_system, confidence_level, n, queue=False):
-    # todo: not sure how to compute confidence interval for 90th percentile
+def niq_nis(queueing_system, confidence_level, n, queue=False):
     classes = queueing_system.get_classes()
     if queue:
         tracker = queueing_system.get_queue_tracker()
     else:
         tracker = queueing_system.get_nis_tracker()
 
-    avg_num_list_all_classes = []
+    avg_num_list_by_class, avg_num_list_all_classes = [], []
+    percentile90_list_by_class, percentile90_list_all_classes = [], []
     for rep in tracker:
         t_n = rep[0][-1][0]
-        avg_num_list_by_class  = []
         area_all_classes = 0
+        num_list_all_classes = []  # [n1, n2, n3, ...] N's are not unique
+        num_sets_by_class = []  # [[n1, n2, n3, ...], [n1, n2, n3, ...], ...]
+        num_pmf_list_by_class = []  # normalized probabilities [[p1, p2, p3, ...], [p1, p2, p3, ...], ...]
+
+        for c in classes:
+            num_list_all_classes += [tup[1] for tup in rep[c]]  # list of N's for customers of all classes
+        num_set_all_classes = list(set(num_list_all_classes))  # unique list of N's for all classes
+        num_pmf_all_classes = np.zeros(len(num_set_all_classes))
+
         for c in classes:
             class_x_tracker = rep[c]
+
             area_by_class = 0
             avg_num_list_classes = []  # [rep1_c1_mean, rep1_c2_mean, ...]
 
+            num_list_class_x = [tup[1] for tup in class_x_tracker]  # list of N's for customers of class x
+            num_set_class_x = list(set(num_list_class_x))  # unique list of N's for customers of class x
+            num_sets_by_class.append(num_set_class_x)  # append to sets
+            num_pmf_by_class = np.zeros(len(num_set_class_x))  # initialize pmf with probabilities of 0
+            percentile90_by_class = []  # [rep1_c1_90thperc, rep1_c2_90thperc, ...]
 
             for i in range(1, len(class_x_tracker)):
-                # E(NIQ) = sum_i=1_to_n_ [(t_i - t_i-1)*NIQ_i] / t_n
-                # E(NIS) = sum_i=1_to_n_ [(t_i - t_i-1)*NIS_i] / t_n
-                area_by_class += (class_x_tracker[i][0] - class_x_tracker[i-1][0]) * class_x_tracker[i][1]
+                t_i1, t_i0 = class_x_tracker[i][0], class_x_tracker[i-1][0]
+                Num_i1 = class_x_tracker[i][1]
+
+                # E(NIQ) = sum_i=1_to_n_ [(t_i - t_i-1)*NIQ_i] / t_n; E(NIS) = sum_i=1_to_n_ [(t_i - t_i-1)*NIS_i] / t_n
+                area_by_class += (t_i1 - t_i0) * Num_i1
+
+                # For 90th percentile by class
+                idx = num_sets_by_class[c].index(Num_i1)  # find the index for N = Num_i1
+                num_pmf_by_class[idx] += t_i1 - t_i0  # accumulate time units for N = n1, n2, ... for each class
+                # For 90th percentile of all classes
+                idx = num_set_all_classes.index(Num_i1)
+                num_pmf_all_classes[idx] += t_i1 - t_i0
+
+            # For expected values
             avg_num_list_classes.append(area_by_class / t_n)
             area_all_classes += area_by_class
 
-        avg_num_list_by_class.append(avg_num_list_classes)  # [[rep1_c1_mean, rep1_c2_mean, ...], [rep1_c1_mean, rep1_c2_mean, ...]]
+            # For 90th percentile by class
+            num_pmf_class_x = num_pmf_by_class / t_n  # normalize pmf for customers in class x
+            num_pmf_list_by_class.append(num_pmf_class_x)
+
+            cum_prob, n, done = 0, 0, False
+            while not done:
+                cum_prob += num_pmf_class_x[n]
+                if cum_prob >= 0.9:
+                    percentile90_by_class.append(num_set_class_x[n])
+                    done = True
+                n += 1
+
+        avg_num_list_by_class.append(avg_num_list_classes)  # [[rep1_c1_mean, rep1_c2_mean, ...], [rep2_c1_mean, rep2_c2_mean, ...]]
         avg_num_list_all_classes.append(area_all_classes / t_n)  # [rep1_all_mean, rep2_all_mean, ...]
 
-    # Individual Classes
-    # Expected Values
-    mean_num_by_class = np.mean(avg_num_list_by_class, axis=0)
-    mean_num_by_class_stderr = sem(avg_num_list_by_class, axis=0)
-    mean_num_by_class_ci = t.interval(confidence_level, n - 1, mean_num_by_class, mean_num_by_class_stderr)
-    # todo: 90th Percentiles
+        percentile90_list_by_class.append(percentile90_by_class)  # [[rep1_c1_90thperc, rep1_c2_90thperc, ...], [rep2_c1_90thperc, rep2_c2_90thperc, ...], ...]
 
-    # All Classes
-    # Expected Value
-    mean_num_all_classes = np.mean(avg_num_list_all_classes)
-    mean_num_all_classes_stderr = sem(avg_num_list_all_classes)
-    mean_num_all_classes_ci = t.interval(confidence_level, n - 1, mean_num_all_classes, mean_num_all_classes_stderr)
-    # todo: 90th Percentile
+        num_pmf_all_classes = num_pmf_all_classes / t_n  # normalize pmf for customers in all classes
+        cum_prob_all, n_all, done_all = 0, 0, False
+        while not done_all:
+            cum_prob_all += num_pmf_all_classes[n_all]
+            if cum_prob_all >= 0.9:
+                percentile90_list_all_classes.append(num_set_all_classes[n_all])  # [rep1_all_90thperc, rep2_all_90thperc, ...]
+                done_all = True
+            n_all += 1
 
-    return mean_num_all_classes, mean_num_all_classes_ci
+    # Individual Classes - 1) expected value with CI, 2) 90th percentile with CI
+    num_mean_by_class, mean_num_by_class_ci = compute_mean_and_CI(avg_num_list_by_class, confidence_level, n,
+                                                                        all_classes=False)
+    num_mean_percentile90_by_class, num_mean_percentile90_by_class_ci = compute_mean_and_CI(percentile90_list_by_class,
+                                                                                            confidence_level, n,
+                                                                                            all_classes=False)
+
+    # All Classes - 1) expected value with CI, 2) 90th percentile with CI
+    num_mean_all_classes, num_mean_all_classes_ci = compute_mean_and_CI(avg_num_list_all_classes, confidence_level, n,
+                                                                        all_classes=True)
+    num_mean_percentile90_all_classes, num_mean_percentile90_all_classes_ci = compute_mean_and_CI(
+        percentile90_list_all_classes, confidence_level, n, all_classes=True)
+
+    return num_mean_all_classes, num_mean_all_classes_ci, num_mean_percentile90_all_classes, num_mean_percentile90_all_classes_ci
+
+
+def compute_mean_and_CI(data, confidence_level, n, all_classes=False):
+    if all_classes:
+        data_mean = np.mean(data)
+        data_mean_stderr = sem(data)
+        data_mean_ci = t.interval(confidence_level, n - 1, data_mean, data_mean_stderr)
+    else:
+        data_mean = np.mean(data, axis=0)
+        data_mean_stderr = sem(data, axis=0)
+        data_mean_ci = t.interval(confidence_level, n - 1, data_mean, data_mean_stderr)
+    return data_mean, data_mean_ci
 
 
 def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci, plot_type):
@@ -179,24 +253,23 @@ def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci,
     ax1.legend()
 
     # Plotting 90th Percentiles
-    if percentile90 is not None and percentile90_ci is not None:
-        y90p1, y90p2, y90p3 = percentile90[0], percentile90[1], percentile90[2]
-        ci90p1_lower, ci90p1_upper = [percentile90_ci[0][i][0] for i in range(len(percentile90_ci[0]))], [
-            percentile90_ci[0][i][1] for i in range(len(percentile90_ci[0]))]
-        ci90p2_lower, ci90p2_upper = [percentile90_ci[1][i][0] for i in range(len(percentile90_ci[1]))], [
-            percentile90_ci[1][i][1] for i in range(len(percentile90_ci[0]))]
-        ci90p3_lower, ci90p3_upper = [percentile90_ci[2][i][0] for i in range(len(percentile90_ci[2]))], [
-            percentile90_ci[2][i][1] for i in range(len(percentile90_ci[0]))]
+    y90p1, y90p2, y90p3 = percentile90[0], percentile90[1], percentile90[2]
+    ci90p1_lower, ci90p1_upper = [percentile90_ci[0][i][0] for i in range(len(percentile90_ci[0]))], [
+        percentile90_ci[0][i][1] for i in range(len(percentile90_ci[0]))]
+    ci90p2_lower, ci90p2_upper = [percentile90_ci[1][i][0] for i in range(len(percentile90_ci[1]))], [
+        percentile90_ci[1][i][1] for i in range(len(percentile90_ci[0]))]
+    ci90p3_lower, ci90p3_upper = [percentile90_ci[2][i][0] for i in range(len(percentile90_ci[2]))], [
+        percentile90_ci[2][i][1] for i in range(len(percentile90_ci[0]))]
 
-        ax2.plot(x, y90p1, 'b', label='mu_prime=2')
-        ax2.fill_between(x, ci90p1_lower, ci90p1_upper, color='b', alpha=0.1)
-        ax2.plot(x, y90p2, 'g', label='mu_prime=2.5')
-        ax2.fill_between(x, ci90p2_lower, ci90p2_upper, color='g', alpha=0.1)
-        ax2.plot(x, y90p3, 'r', label='mu_prime=3')
-        ax2.fill_between(x, ci90p3_lower, ci90p3_upper, color='r', alpha=0.1)
-        ax2.set(xlabel='P(speedup)', ylabel='90th Percentile')
-        # ax2.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
-        ax2.legend()
+    ax2.plot(x, y90p1, 'b', label='mu_prime=2')
+    ax2.fill_between(x, ci90p1_lower, ci90p1_upper, color='b', alpha=0.1)
+    ax2.plot(x, y90p2, 'g', label='mu_prime=2.5')
+    ax2.fill_between(x, ci90p2_lower, ci90p2_upper, color='g', alpha=0.1)
+    ax2.plot(x, y90p3, 'r', label='mu_prime=3')
+    ax2.fill_between(x, ci90p3_lower, ci90p3_upper, color='r', alpha=0.1)
+    ax2.set(xlabel='P(speedup)', ylabel='90th Percentile')
+    # ax2.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
+    ax2.legend()
 
     save_path = os.path.join(os.getcwd(), plot_type + '.png')
     plt.savefig(save_path, dpi=600)
