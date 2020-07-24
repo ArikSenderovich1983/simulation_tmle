@@ -1,19 +1,3 @@
-# The next step would be to create a new Python Class for Priority M/G/1 multi-class queues.
-# For now, assume that we have a list of classes 1,…,K and the priority respects the order (1 is highest priority, K is lowest).
-# Priorities are strict (not randomized) so if type i is in queue it will always get priority over i+1, i+2, ...
-
-# Comments:
-# 1. Separate queueing systems with FCFS queue discipline with priority
-# 2. Use a different python file to generate_data --> otherwise, would be repetitive for 2 classes
-# 3. Create getter functions in case need to get the data members in another python file
-# 4. Change function name "simulate_q" for FCFS queue to be "simulate_q_FCFS"
-
-# Implementations:
-# 1. FCFS class --> class object creation, simulate_q_fsfc
-# 2. Priority class --> class object creation, simulate_q_priority
-# 3. strictly generate_data function (doesn't include sla_ level calculations)
-# 4. plotting --> generate plots, calculate mean & 90th percentiles for tis, wiq, niq, wiq
-
 from resource import *
 import heapq as hq
 import numpy as np
