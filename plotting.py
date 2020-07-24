@@ -4,11 +4,7 @@ import matplotlib.pyplot as plt
 
 def simulation(nCustomer, nReplications):
     """
-    Assumptions:
-    1) one type of customer
-    2) fixed arrival rate: lambda = 1
-    3) fixed service rate before intervention: mu = 1.1
-    4) 4 types of performance measures: Wait Time in Queue, Time in System, Number in Queue, Number in System
+    Four types of performance measures: Wait Time in Queue, Time in System, Number in Queue, Number in System
     """
     # Input parameters
     lam = 1  # fixed arrival rate
@@ -23,62 +19,127 @@ def simulation(nCustomer, nReplications):
     #     return
 
     # Keep track of statistics, 3 values of mu, 11 values of P(intervention)
+    # All classes
     tis_mean, wiq_mean, niq_mean, nis_mean = np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11))
     tis_ci, wiq_ci, niq_ci, nis_ci = np.zeros((3,11),dtype='f,f'), np.zeros((3,11),dtype='f,f'), np.zeros((3,11),dtype='f,f'), np.zeros((3,11),dtype='f,f')
     tis_90per, wiq_90per, niq_90per, nis_90per = np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11))
     tis_90per_ci, wiq_90per_ci, niq_90per_ci, nis_90per_ci = np.zeros((3, 11), dtype='f,f'), np.zeros((3, 11), dtype='f,f'), np.zeros((3, 11), dtype='f,f'), np.zeros((3, 11), dtype='f,f')
 
+    # Individual Classes
+    nClasses = 2
+    nRow = len(mu_prime_list) * nClasses
+    tis_mean_by_class, wiq_mean_by_class, niq_mean_by_class, nis_mean_by_class = np.zeros(
+        (nRow, 11)), np.zeros((nRow, 11)), np.zeros(
+        (nRow, 11)), np.zeros((nRow, 11))
+    tis_mean_ci_by_class, wiq_mean_ci_by_class, niq_mean_ci_by_class, nis_mean_ci_by_class = np.zeros(
+        (nRow, 11), dtype='f,f'), np.zeros((nRow, 11), dtype='f,f'), np.zeros(
+        (nRow, 11), dtype='f,f'), np.zeros((nRow, 11), dtype='f,f')
+    tis_90per_by_class, wiq_90per_by_class, niq_90per_by_class, nis_90per_by_class = np.zeros(
+        (nRow, 11)), np.zeros((nRow, 11)), np.zeros(
+        (nRow, 11)), np.zeros((nRow, 11))
+    tis_90per_ci_by_class, wiq_90per_ci_by_class, niq_90per_ci_by_class, nis_90per_ci_by_class = np.zeros(
+        (nRow, 11), dtype='f,f'), np.zeros(
+        (nRow, 11), dtype='f,f'), np.zeros((nRow, 11), dtype='f,f'), np.zeros((nRow, 11), dtype='f,f')
+
     for i, mu_prime in enumerate(mu_prime_list):
         for j, p_interv in enumerate(p_intervention_list):
             print("Parameters: mu_prime={}, p_intervention={}".format(mu_prime, p_interv))
-            q_ = multi_class_single_station_fcfs(lambda_ = lam, classes = [0], probs = [1.0],
-                         mus = [mu], prob_speedup=[p_interv], mus_speedup=[mu_prime],
-                         servers = 1)
+            # q_ = multi_class_single_station_fcfs(lambda_ = lam, classes = [0], probs = [1.0],
+            #              mus = [mu], prob_speedup=[p_interv], mus_speedup=[mu_prime],
+            #              servers = 1)
+            q_ = multi_class_single_station_fcfs(lambda_=lam, classes=[0, 1], probs=[0.5, 0.5],
+                                                 mus=[mu, mu], prob_speedup=[p_interv, 0.0], mus_speedup=[mu_prime, mu_prime],
+                                                 servers=1)
 
             q_.simulate_q(customers=nCustomer, runs=nReplications)
-            q_.generate_data(sla_=0.9, quant_flag=True, write_file=False)
 
             # Time in System
-            los_mean_all, los_mean_all_ci, los_mean_percentile90_all, los_mean_percentile90_all_ci = los_wiq(q_,
-                                                                                                             confidence_level,
-                                                                                                             nReplications,
-                                                                                                             los=True)
+            los_mean_all, los_mean_all_ci, los_mean_percentile90_all, los_mean_percentile90_all_ci, los_means, los_means_ci, los_mean_percentile90s, los_mean_percentile90s_ci = los_wiq(
+                q_, confidence_level, nReplications, los=True)
             tis_mean[i, j], tis_ci[i, j] = los_mean_all, los_mean_all_ci
             tis_90per[i, j], tis_90per_ci[i, j] = los_mean_percentile90_all, los_mean_percentile90_all_ci
+            offset = 0
+            for k in range(len(los_means)):
+                tis_mean_by_class[i + offset, j]  = los_means[k]
+                tis_mean_ci_by_class[i + offset, j] = (los_means_ci[0][k], los_means_ci[1][k])
+                tis_90per_by_class[i + offset, j]  = los_mean_percentile90s[k]
+                tis_90per_ci_by_class[i + offset, j] = (los_mean_percentile90s_ci[0][k], los_mean_percentile90s_ci[1][k])
+                offset += len(mu_prime_list)
 
             # Wait Time in Queue
-            wiq_mean_all, wiq_mean_all_ci, wiq_mean_percentile90_all, wiq_mean_percentile90_all_ci = los_wiq(q_,
-                                                                                                             confidence_level,
-                                                                                                             nReplications,
-                                                                                                             los=False)
+            wiq_mean_all, wiq_mean_all_ci, wiq_mean_percentile90_all, wiq_mean_percentile90_all_ci, wiq_means, wiq_means_ci, wiq_mean_percentile90s, wiq_mean_percentile90s_ci = los_wiq(
+                q_, confidence_level, nReplications, los=False)
             wiq_mean[i, j], wiq_ci[i, j] = wiq_mean_all, wiq_mean_all_ci
             wiq_90per[i, j], wiq_90per_ci[i, j] = wiq_mean_percentile90_all, wiq_mean_percentile90_all_ci
+            offset = 0
+            for k in range(len(los_means)):
+                wiq_mean_by_class[i + offset, j] = wiq_means[k]
+                wiq_mean_ci_by_class[i + offset, j] = (wiq_means_ci[0][k], wiq_means_ci[1][k])
+                wiq_90per_by_class[i + offset, j]  = wiq_mean_percentile90s[k]
+                wiq_90per_ci_by_class[i + offset, j] = (wiq_mean_percentile90s_ci[0][k], wiq_mean_percentile90s_ci[1][k])
+                offset += len(mu_prime_list)
 
             # Number in Queue
-            niq_num_all_classes, niq_num_all_classes_ci, niq_mean_percentile90_all, niq_mean_percentile90_all_ci = niq_nis(
+            niq_num_all_classes, niq_num_all_classes_ci, niq_mean_percentile90_all, niq_mean_percentile90_all_ci, niq_nums, niq_nums_ci, niq_mean_percentile90s, niq_mean_percentile90s_ci = niq_nis(
                 q_, confidence_level, nReplications, queue=True)
             niq_mean[i, j], niq_ci[i, j] = niq_num_all_classes, niq_num_all_classes_ci
             niq_90per[i, j], niq_90per_ci[i, j] = niq_mean_percentile90_all, niq_mean_percentile90_all_ci
+            offset = 0
+            for k in range(len(los_means)):
+                niq_mean_by_class[i + offset, j] = niq_nums[k]
+                niq_mean_ci_by_class[i + offset, j] = (niq_nums_ci[0][k], niq_nums_ci[1][k])
+                niq_90per_by_class[i + offset, j] = niq_mean_percentile90s[k]
+                niq_90per_ci_by_class[i + offset, j] = (niq_mean_percentile90s_ci[0][k], niq_mean_percentile90s_ci[1][k])
+                offset += len(mu_prime_list)
 
             # Number in System
-            nis_num_all_classes, nis_num_all_classes_ci, nis_mean_percentile90_all, nis_mean_percentile90_all_ci = niq_nis(
+            nis_num_all_classes, nis_num_all_classes_ci, nis_mean_percentile90_all, nis_mean_percentile90_all_ci, nis_nums, nis_nums_ci, nis_mean_percentile90s, nis_mean_percentile90s_ci = niq_nis(
                 q_, confidence_level, nReplications, queue=False)
             nis_mean[i, j], nis_ci[i, j] = nis_num_all_classes, nis_num_all_classes_ci
             nis_90per[i, j], nis_90per_ci[i, j] = nis_mean_percentile90_all, nis_mean_percentile90_all_ci
+            offset = 0
+            for k in range(len(los_means)):
+                nis_mean_by_class[i + offset, j] = nis_nums[k]
+                nis_mean_ci_by_class[i + offset, j] = (nis_nums_ci[0][k], nis_nums_ci[1][k])
+                nis_90per_by_class[i + offset, j] = nis_mean_percentile90s[k]
+                nis_90per_ci_by_class[i + offset, j] = (nis_mean_percentile90s_ci[0][k], nis_mean_percentile90s_ci[1][k])
+                offset += len(mu_prime_list)
 
-    # Plotting Graphs
+    # Plotting Graphs (All Classes)
     plot_mean_90percentile_with_CI(tis_mean, tis_ci, tis_90per, tis_90per_ci,
-                                   "Time in System With 95% Confidence Interval, {} Customers, {} Replications".format(
-                                       nCustomer, nReplications))
+                                   "Time in System With 95% Confidence Interval, {} Customers, {} Replications, {} Classes (All)".format(
+                                       nCustomer, nReplications, nClasses))
     plot_mean_90percentile_with_CI(wiq_mean, wiq_ci, wiq_90per, wiq_90per_ci,
-                                   "Wait Time in Queue With 95% Confidence Interval, {} Customers, {} Replications".format(
-                                       nCustomer, nReplications))
+                                   "Wait Time in Queue With 95% Confidence Interval, {} Customers, {} Replications, {} Classes (All)".format(
+                                       nCustomer, nReplications, nClasses))
     plot_mean_90percentile_with_CI(niq_mean, niq_ci, niq_90per, niq_90per_ci,
-                                   "Number in Queue With 95% Confidence Interval, {} Customers, {} Replications".format(
-                                       nCustomer, nReplications))
+                                   "Number in Queue With 95% Confidence Interval, {} Customers, {} Replications, {} Classes (All)".format(
+                                       nCustomer, nReplications, nClasses))
     plot_mean_90percentile_with_CI(nis_mean, nis_ci, nis_90per, nis_90per_ci,
-                                   "Number in System With 95% Confidence Interval, {} Customers, {} Replications".format(
-                                       nCustomer, nReplications))
+                                   "Number in System With 95% Confidence Interval, {} Customers, {} Replications, {} Classes (All)".format(
+                                       nCustomer, nReplications, nClasses))
+
+    # Plotting Graphs (Individual Classes)
+    start, end = 0, len(mu_prime_list)
+    for g in range(nClasses):
+        plot_mean_90percentile_with_CI(tis_mean_by_class[start:end], tis_mean_ci_by_class[start:end],
+                                       tis_90per_by_class[start:end], tis_90per_ci_by_class[start:end],
+                                       "Time in System With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
+                                           nCustomer, nReplications, g+1))
+        plot_mean_90percentile_with_CI(wiq_mean_by_class[start:end], wiq_mean_ci_by_class[start:end],
+                                       wiq_90per_by_class[start:end], wiq_90per_ci_by_class[start:end],
+                                       "Wait Time in Queue With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
+                                           nCustomer, nReplications, g+1))
+        plot_mean_90percentile_with_CI(niq_mean_by_class[start:end], niq_mean_ci_by_class[start:end],
+                                       niq_90per_by_class[start:end], niq_90per_ci_by_class[start:end],
+                                       "Number in Queue With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
+                                           nCustomer, nReplications, g+1))
+        plot_mean_90percentile_with_CI(nis_mean_by_class[start:end], nis_mean_ci_by_class[start:end],
+                                       nis_90per_by_class[start:end], nis_90per_ci_by_class[start:end],
+                                       "Number in System With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
+                                           nCustomer, nReplications, g+1))
+        start += len(mu_prime_list)
+        end += len(mu_prime_list)
 
 
 def los_wiq(queueing_system, confidence_level, n, los=False):
@@ -90,18 +151,23 @@ def los_wiq(queueing_system, confidence_level, n, los=False):
 
     avg_time_by_class, avg_time_all_classes = [], []
     time_percentile90_by_class, time_percentile90_all_classes = [], []
-
     for rep in tracker:
-        # Individual Classes
-        avg_time_classes = np.mean(rep, axis=1)
-        avg_time_by_class.append(avg_time_classes)
-        time_percentile90_classes = np.percentile(rep, 90, axis=1)
-        time_percentile90_by_class.append(time_percentile90_classes)
-        # All Classes
-        avg_time_all = np.mean(rep)
-        avg_time_all_classes.append(avg_time_all)
-        time_percentile90_all = np.percentile(rep, 90)
-        time_percentile90_all_classes.append(time_percentile90_all)
+        # Expected Values
+        avg_time_classes, time_percentile90_classes = [], []
+        time_list_all_classes, time_percentile90_list_all_classes = [], []
+        for time_list in rep:
+            avg_time_classes.append(np.mean(time_list))
+            time_list_all_classes = np.concatenate([time_list_all_classes, time_list])
+
+        avg_time_by_class.append(avg_time_classes)  # Individual Classes
+        avg_time_all_classes.append(np.mean(time_list_all_classes))  # All Classes
+
+        # 90th Percentile
+        for time_percentile90_list in rep:
+            time_percentile90_classes.append(np.percentile(time_percentile90_list, 90))
+            time_percentile90_list_all_classes = np.concatenate([time_percentile90_list_all_classes, time_percentile90_list])
+        time_percentile90_by_class.append(time_percentile90_classes)  # Individual Classes
+        time_percentile90_all_classes.append(np.percentile(time_percentile90_list_all_classes, 90))   # All Classes
 
     # Individual Classes - 1) expected value with CI, 2) 90th percentile with CI
     time_mean_by_class, time_mean_by_class_ci = compute_mean_and_CI(avg_time_by_class, confidence_level, n,
@@ -119,7 +185,8 @@ def los_wiq(queueing_system, confidence_level, n, los=False):
                                                                                     confidence_level, n,
                                                                                     all_classes=True)
 
-    return time_mean_all, time_mean_all_ci, time_mean_percentile90_all, time_mean_percentile90_all_ci
+    return time_mean_all, time_mean_all_ci, time_mean_percentile90_all, time_mean_percentile90_all_ci, \
+           time_mean_by_class, time_mean_by_class_ci, time_mean_percentile90_by_class, time_mean_percentile90_by_class_ci
 
 
 def niq_nis(queueing_system, confidence_level, n, queue=False):
@@ -128,7 +195,6 @@ def niq_nis(queueing_system, confidence_level, n, queue=False):
         tracker = queueing_system.get_queue_tracker()
     else:
         tracker = queueing_system.get_nis_tracker()
-
     avg_num_list_by_class, avg_num_list_all_classes = [], []
     percentile90_list_by_class, percentile90_list_all_classes = [], []
     for rep in tracker:
@@ -137,6 +203,9 @@ def niq_nis(queueing_system, confidence_level, n, queue=False):
         num_list_all_classes = []  # [n1, n2, n3, ...] N's are not unique
         num_sets_by_class = []  # [[n1, n2, n3, ...], [n1, n2, n3, ...], ...]
         num_pmf_list_by_class = []  # normalized probabilities [[p1, p2, p3, ...], [p1, p2, p3, ...], ...]
+
+        avg_num_list_classes = []  # [rep1_c1_mean, rep1_c2_mean, ...]
+        percentile90_by_class = []  # [rep1_c1_90thperc, rep1_c2_90thperc, ...]
 
         for c in classes:
             num_list_all_classes += [tup[1] for tup in rep[c]]  # list of N's for customers of all classes
@@ -147,13 +216,11 @@ def niq_nis(queueing_system, confidence_level, n, queue=False):
             class_x_tracker = rep[c]
 
             area_by_class = 0
-            avg_num_list_classes = []  # [rep1_c1_mean, rep1_c2_mean, ...]
 
             num_list_class_x = [tup[1] for tup in class_x_tracker]  # list of N's for customers of class x
             num_set_class_x = list(set(num_list_class_x))  # unique list of N's for customers of class x
             num_sets_by_class.append(num_set_class_x)  # append to sets
             num_pmf_by_class = np.zeros(len(num_set_class_x))  # initialize pmf with probabilities of 0
-            percentile90_by_class = []  # [rep1_c1_90thperc, rep1_c2_90thperc, ...]
 
             for i in range(1, len(class_x_tracker)):
                 t_i1, t_i0 = class_x_tracker[i][0], class_x_tracker[i-1][0]
@@ -190,7 +257,7 @@ def niq_nis(queueing_system, confidence_level, n, queue=False):
 
         percentile90_list_by_class.append(percentile90_by_class)  # [[rep1_c1_90thperc, rep1_c2_90thperc, ...], [rep2_c1_90thperc, rep2_c2_90thperc, ...], ...]
 
-        num_pmf_all_classes = num_pmf_all_classes / t_n  # normalize pmf for customers in all classes
+        num_pmf_all_classes = num_pmf_all_classes / (t_n * len(classes))  # normalize pmf for customers in all classes
         cum_prob_all, n_all, done_all = 0, 0, False
         while not done_all:
             cum_prob_all += num_pmf_all_classes[n_all]
@@ -212,14 +279,19 @@ def niq_nis(queueing_system, confidence_level, n, queue=False):
     num_mean_percentile90_all_classes, num_mean_percentile90_all_classes_ci = compute_mean_and_CI(
         percentile90_list_all_classes, confidence_level, n, all_classes=True)
 
-    return num_mean_all_classes, num_mean_all_classes_ci, num_mean_percentile90_all_classes, num_mean_percentile90_all_classes_ci
+    return num_mean_all_classes, num_mean_all_classes_ci, num_mean_percentile90_all_classes, \
+           num_mean_percentile90_all_classes_ci, num_mean_by_class, mean_num_by_class_ci, \
+           num_mean_percentile90_by_class, num_mean_percentile90_by_class_ci
 
 
 def compute_mean_and_CI(data, confidence_level, n, all_classes=False):
     if all_classes:
         data_mean = np.mean(data)
         data_mean_stderr = sem(data)
-        data_mean_ci = t.interval(confidence_level, n - 1, data_mean, data_mean_stderr)
+        if data_mean_stderr == 0:  # all data points are equal
+            data_mean_ci = (data_mean, data_mean)
+        else:
+            data_mean_ci = t.interval(confidence_level, n - 1, data_mean, data_mean_stderr)
     else:
         data_mean = np.mean(data, axis=0)
         data_mean_stderr = sem(data, axis=0)

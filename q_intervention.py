@@ -39,11 +39,11 @@ class multi_class_single_station_fcfs:
     def get_classes(self):
         return self.classes_
 
-    def get_los_tracker(self):
-        return self.los_tracker
-
     def get_wait_time_tracker(self):
         return self.wait_time_tracker
+
+    def get_los_tracker(self):
+        return self.los_tracker
 
     def get_queue_tracker(self):
         return self.queue_tracker
@@ -65,28 +65,11 @@ class multi_class_single_station_fcfs:
             classes_ = []
             interv_ = []
 
-            # system_type: 1 = M/G/1, 2 = G/G/1 (appointment)
             for c in range(customers):
                 # simulate next arrival
-                if system_type == 1:
-                    # next arrival time: t_ + inter-arrival_time
-                    # draw an inter-arrival time from exponential distribution
-                    sim_arrival_times.append(
-                        t_ + Distribution(dist_type=DistributionType.exponential, rate=self.lambda_).sample())
-                elif system_type == 2:
-                    # next arrival time: a' = a + noise, noise here is punctuality
-                    # draw a deterministic inter-arrival time from exponential distribution
-                    deterministic_arrival = Distribution(dist_type=DistributionType.exponential,
-                                                         rate=self.lambda_).sample()
-                    done = False
-                    while not done:
-                        # draw a punctuality time from laplace distribution
-                        punctuality = Distribution(dist_type=DistributionType.laplace, location=self.laplace_params[0],
-                                                   scale=self.laplace_params[1]).sample()
-                        next_arrival_time = t_ + deterministic_arrival + punctuality
-                        if next_arrival_time >= 0:
-                            sim_arrival_times.append(next_arrival_time)
-                            done = True
+                # next arrival time: t_ + inter-arrival_time
+                sim_arrival_times.append(
+                    t_ + Distribution(dist_type=DistributionType.exponential, rate=self.lambda_).sample())
 
                 # move forward the timestamp
                 t_ = sim_arrival_times[len(sim_arrival_times)-1]
@@ -104,7 +87,20 @@ class multi_class_single_station_fcfs:
                     service_times.append(
                         Distribution(dist_type=DistributionType.exponential, rate=self.mus_speedup[c_]).sample())
 
-            print("arrival_times for system_type {}".format(system_type), sim_arrival_times)
+            # system_type (default 1) --> system_type 1 = M/G/1; system_type 2 = G/G/1 (appointment)
+            if system_type == 2:
+                # next arrival time: a' = a + noise, noise here is punctuality
+                # draw a punctuality time from laplace distribution
+                for i, arrival_time in enumerate(sim_arrival_times):
+                    done = False
+                    while not done:
+                        punctuality = Distribution(dist_type=DistributionType.laplace, location=self.laplace_params[0],
+                                                   scale=self.laplace_params[1]).sample()
+                        actual_arrival_time = arrival_time + punctuality
+                        if actual_arrival_time >= 0:
+                            sim_arrival_times[i] = actual_arrival_time
+                            done = True
+
             event_log = []
             queue_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
             nis_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
