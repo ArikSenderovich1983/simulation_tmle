@@ -14,6 +14,7 @@ class DistributionType(Enum):
     kernel_density_estimate = 6
     deterministic = 7
     empirical = 8
+    laplace = 9
 
 
 class Distribution:
@@ -34,6 +35,8 @@ class Distribution:
                 self._param = [kwargs.get('mintime', 0)]
             elif dist_type == DistributionType.deterministic:
                 self._param = [kwargs.get('time', 0)]
+            elif dist_type == DistributionType.laplace:
+                self._param = [kwargs.get('location', 0), kwargs.get('scale', 1)]
             else:  # immediate transition
                 self._param = [0]
                 dist_type = DistributionType.immediate
@@ -89,6 +92,8 @@ class Distribution:
             return self._param[0]
         elif self._name == DistributionType.immediate:
             return 0
+        elif self._name == DistributionType.laplace:
+            return self._param[0]
         else:
             print("please implement for the Mean {} - debug me!".format(self._name))
             return -1
