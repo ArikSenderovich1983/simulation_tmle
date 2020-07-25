@@ -155,6 +155,7 @@ class multi_class_single_station_fcfs:
         sla_q = kwargs.get('sla_', 0.9)
         quant_flag = kwargs.get('quant_flag',True)
         write_file = kwargs.get('write_file', True)
+        filename = kwargs.get('filename','intervention')
         offset = 0.0
         self.avg_sla_value=0
         avg_sla_q = 0
@@ -171,6 +172,7 @@ class multi_class_single_station_fcfs:
             df.reset_index(drop=True,inplace=True)
 
             df['elapsed'] = 0.0
+            df['S'] = 0.0
             df['arrival_time'] = 0.0
             df['id_run'] = ""
             cur_id = df.at[0,'id']
@@ -183,14 +185,20 @@ class multi_class_single_station_fcfs:
                 if cur_id==df.at[i,'id']:
                     df.at[i, 'arrival_time'] = cur_start + offset
                     df.at[i,'elapsed'] = df.at[i,'timestamp'] - cur_start
+                    # departure event:
+                    if df.at[i,'event_type']=='d':
+                        df.at[i, 'S'] = df.at[i,'timestamp']-df.at[i-1,'timestamp']
                     #print(df.at[i,'event_type'])
                     #input("Press Enter to continue...")
 
 
                 else:
+
+
                     cur_id = df.at[i, 'id']
                     cur_start= df.at[i,'timestamp'].copy()
                     df.at[i,'arrival_time'] = cur_start+offset
+
                 df.at[i,'FriendsID'] = " ".join(map(str, temp_friends[df.at[i,'id']]))
                 df.at[i,'nFriends'] = len(temp_friends[df.at[i, 'id']])
             offset = offset+max(df['timestamp'])
@@ -211,13 +219,16 @@ class multi_class_single_station_fcfs:
             if write_file:
                 if j==0:
                     #df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', index=False, header=True)
-                    df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp', 'event_type','C', 'A', 'FriendsID','nFriends','elapsed', 'SLA']].to_csv('intervention_data.csv', index=False, header=True)
+                    df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp', 'event_type','C', 'A', 'S', 'FriendsID','nFriends','elapsed', 'SLA']].to_csv(str(filename)+'.csv', index=False, header=True)
 
                 else:
                     #df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
-                    df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp','event_type','C', 'A', 'FriendsID','nFriends', 'elapsed','SLA']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
+                    df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp','event_type','C', 'A', 'S','FriendsID','nFriends', 'elapsed','SLA']].to_csv(str(filename)+'.csv', mode='a', index= False, header=False)
 
         print("Average SLA value: "+str(np.mean(self.sla_levels)))
+        return np.mean(self.sla_levels)
+
+
 
     def performance_los(self):
 
@@ -252,27 +263,37 @@ class multi_class_single_station_fcfs:
         for c in self.classes_:
             print("LOS per class "+str(c)+": " + str(run_avg_los_class[c]/len(self.trackers)))
 
+points_ = 20
+runs_ = 1
+mus_speedup_list = [11] #np.linspace(1.1,11,points_)
+sla_list = [3 for i in range(points_)]
+customers_ = 10000
+sla_results =[]
+#todo: write different intervention files per value. Run TMLE and plot. Fix sla at 4.
+for j,mu_2 in enumerate(mus_speedup_list):
+    print('mu 2 is: ' +str(mu_2))
+    q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+                                         mus = [1.1], prob_speedup=[0.3], mus_speedup=[mu_2],
+                                         servers = 1)
+
+    q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+                                         mus = [1.1], prob_speedup=[0.7], mus_speedup=[mu_2],
+                                         servers = 1)
 
 
-q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
-                                     mus = [1.1], prob_speedup=[0.5], mus_speedup=[11],
-                                     servers = 1)
+    q_.simulate_q(customers = customers_, runs = runs_)
 
-q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
-                                     mus = [1.1], prob_speedup=[1.0], mus_speedup=[11],
-                                     servers = 1)
+    sla_results.append(q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False, filename = 'intervention_'+str(j)))
 
+    q_.performance_los()
 
-q_.simulate_q(customers = 100000, runs = 1)
-
-q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False)
-
-q_.performance_los()
-
-#fc.calculate_friends("intervention_data.csv", window_ = 5)
+    #fc.calculate_friends("intervention_data.csv", window_ = 5)
 
 
-q_2.simulate_q(customers = 100000, runs = 1)
+    q_2.simulate_q(customers = customers_, runs = runs_)
+    #q_2.generate_data(sla_ = sla_list, quant_flag=False, write_file = False)
 
-q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
-q_2.performance_los()
+    q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
+    q_2.performance_los()
+
+print(sla_results)
