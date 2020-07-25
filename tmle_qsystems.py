@@ -8,7 +8,7 @@ from scipy.stats import bernoulli, expon
 from zepid.causal.gformula import TimeFixedGFormula
 from zepid import load_sample_data, spline
 from zepid.causal.doublyrobust import TMLE
-from zepid.causal.doublyrobust import StochasticTMLE
+#from zepid.causal.doublyrobust import StochasticTMLE
 
 # Load dependencies
 #import keras

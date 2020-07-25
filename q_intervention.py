@@ -235,15 +235,10 @@ class multi_class_single_station_fcfs:
 
         quant_flag = kwargs.get('quant_flag',True)
         write_file = kwargs.get('write_file', True)
-<<<<<<< HEAD
-        filename = kwargs.get('filename','intervention')
-        offset = 0.0
-        self.avg_sla_value=0
-=======
+
 
         offset = 0.0  # time at the end of last run
         self.avg_sla_value = 0
->>>>>>> 50dac628ade83716ee5bb994b7df6dd10e5a92ae
         avg_sla_q = 0
 
         # iterate through each event log (simulation run) in simulation data
@@ -259,13 +254,9 @@ class multi_class_single_station_fcfs:
             df.sort_values(by=['id','timestamp'], inplace=True)
             df.reset_index(drop=True,inplace=True)
 
-<<<<<<< HEAD
-            df['elapsed'] = 0.0
-            df['S'] = 0.0
-=======
+
             # add additional columns to the DataFrame
             df['elapsed'] = 0.0  # time elapsed since customer's arrival
->>>>>>> 50dac628ade83716ee5bb994b7df6dd10e5a92ae
             df['arrival_time'] = 0.0
             df['id_run'] = ""
             cur_id = df.at[0,'id']
@@ -290,19 +281,7 @@ class multi_class_single_station_fcfs:
 
                 # if the event does not correspond to the current customer, events for the next customer starts
                 else:
-<<<<<<< HEAD
 
-
-                    cur_id = df.at[i, 'id']
-                    cur_start= df.at[i,'timestamp'].copy()
-                    df.at[i,'arrival_time'] = cur_start+offset
-
-                df.at[i,'FriendsID'] = " ".join(map(str, temp_friends[df.at[i,'id']]))
-                df.at[i,'nFriends'] = len(temp_friends[df.at[i, 'id']])
-            offset = offset+max(df['timestamp'])
-            print('Average LOS per run: ')
-            print(np.mean(df[df.event_type == 'd']['elapsed']))
-=======
                     cur_id = df.at[i, 'id']  # set current customer to the customer for the event
                     cur_start = df.at[i,'timestamp'].copy()  # advance the current start time to the time of event
                     df.at[i,'arrival_time'] = cur_start + offset
@@ -312,7 +291,6 @@ class multi_class_single_station_fcfs:
             offset = offset + max(df['timestamp']) # the next simulation run starts at the offset time
             # print('Average LOS per run: ')
             # print(np.mean(df[df.event_type == 'd']['elapsed']))
->>>>>>> 50dac628ade83716ee5bb994b7df6dd10e5a92ae
 
             df['SLA'] = 0
             if quant_flag:
@@ -329,20 +307,7 @@ class multi_class_single_station_fcfs:
 
             # generate csv files
             if write_file:
-<<<<<<< HEAD
-                if j==0:
-                    #df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', index=False, header=True)
-                    df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp', 'event_type','C', 'A', 'S', 'FriendsID','nFriends','elapsed', 'SLA']].to_csv(str(filename)+'.csv', index=False, header=True)
 
-                else:
-                    #df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
-                    df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp','event_type','C', 'A', 'S','FriendsID','nFriends', 'elapsed','SLA']].to_csv(str(filename)+'.csv', mode='a', index= False, header=False)
-
-        print("Average SLA value: "+str(np.mean(self.sla_levels)))
-        return np.mean(self.sla_levels)
-
-
-=======
                 # save generated data in a folder in the current working directory
                 cwd = os.getcwd() # get current working directory
                 # single type of customers
@@ -441,7 +406,6 @@ class multi_class_single_station_fcfs:
                     df_nis.to_csv(save_path, mode='a', index=False, header=False)
 
         # print("Average SLA value: "+str(np.mean(self.sla_levels)))
->>>>>>> 50dac628ade83716ee5bb994b7df6dd10e5a92ae
 
 
     def performance_los(self):
@@ -476,31 +440,31 @@ class multi_class_single_station_fcfs:
                 run_avg_los += avg_run_los
         print("LOS across runs: " + str(run_avg_los / len(self.los_tracker)))
         for c in self.classes_:
-<<<<<<< HEAD
-            print("LOS per class "+str(c)+": " + str(run_avg_los_class[c]/len(self.trackers)))
+#<<<<<<< HEAD
+#            print("LOS per class "+str(c)+": " + str(run_avg_los_class[c]/len(self.trackers)))
 
-points_ = 20
-runs_ = 1
-mus_speedup_list = [11] #np.linspace(1.1,11,points_)
-sla_list = [3 for i in range(points_)]
-customers_ = 10000
-sla_results =[]
+#points_ = 20
+#runs_ = 1
+#mus_speedup_list = [11] #np.linspace(1.1,11,points_)
+#sla_list = [3 for i in range(points_)]
+#customers_ = 10000
+#sla_results =[]
 #todo: write different intervention files per value. Run TMLE and plot. Fix sla at 4.
-for j,mu_2 in enumerate(mus_speedup_list):
-    print('mu 2 is: ' +str(mu_2))
-    q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
-                                         mus = [1.1], prob_speedup=[0.3], mus_speedup=[mu_2],
-                                         servers = 1)
+#for j,mu_2 in enumerate(mus_speedup_list):
+ #   print('mu 2 is: ' +str(mu_2))
+ #   q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+ #                                        mus = [1.1], prob_speedup=[0.3], mus_speedup=[mu_2],
+ #                                        servers = 1)
 
-    q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
-                                         mus = [1.1], prob_speedup=[0.7], mus_speedup=[mu_2],
-                                         servers = 1)
+#    q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
+#                                         mus = [1.1], prob_speedup=[0.7], mus_speedup=[mu_2],
+#                                         servers = 1)
 
 
-    q_.simulate_q(customers = customers_, runs = runs_)
+#    q_.simulate_q(customers = customers_, runs = runs_)
 
-    sla_results.append(q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False, filename = 'intervention_'+str(j)))
-=======
+#    sla_results.append(q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = False, filename = 'intervention_'+str(j)))
+#=======
             print("LOS per class " + str(c) + ": " + str(run_avg_los_class[c] / len(self.los_tracker)))
 
 if __name__ == "__main__":
@@ -533,40 +497,3 @@ if __name__ == "__main__":
                                          servers=1, laplace_params=[0, 0.5])
     q_3.simulate_q(customers=100, runs=3, system_type=1)
     q_3.generate_data(sla_=0.9, quant_flag=True, write_file=True)
-    '''
-    q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0,1], probs = [0.5,0.5],
-                                         mus = [0.5,2], prob_speedup=[0.3,0.0], mus_speedup=[5,2],
-                                         servers = 2)
-
-    # q_2 = multi_class_single_station_fcfs(lambda_ = 1, classes = [0,1], probs = [0.5,0.5],
-    #                                  mus = [0.5,2], prob_speedup=[0.0,0.0], mus_speedup=[5,2],
-    #                                  servers = 2)
-
-
-    q_.simulate_q(customers = 100, runs = 10)
-
-    #q_.generate_data(sla_ = 0.9, quant_flag=True)
-    q_.generate_data(sla_ = 0.9, quant_flag=True, write_file = True)
-    #q_.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
->>>>>>> 50dac628ade83716ee5bb994b7df6dd10e5a92ae
-
-    q_.performance_los()
-
-    #fc.calculate_friends("intervention_data.csv", window_ = 5)
-
-
-<<<<<<< HEAD
-    q_2.simulate_q(customers = customers_, runs = runs_)
-    #q_2.generate_data(sla_ = sla_list, quant_flag=False, write_file = False)
-
-    q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
-    q_2.performance_los()
-
-print(sla_results)
-=======
-    # q_2.simulate_q(customers = 10000, runs = 30)
-
-    # q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
-    # q_2.performance_los()
-    '''
->>>>>>> 50dac628ade83716ee5bb994b7df6dd10e5a92ae
