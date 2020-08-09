@@ -1,8 +1,10 @@
 from q_intervention import *
 from scipy.stats import t, sem
 import matplotlib.pyplot as plt
+from q_priority import *
+from mpmath import *
 
-def simulation(nCustomer, nReplications):
+def simulation(nCustomer, nReplications, nClasses):
     """
     Four types of performance measures: Wait Time in Queue, Time in System, Number in Queue, Number in System
     """
@@ -26,7 +28,6 @@ def simulation(nCustomer, nReplications):
     tis_90per_ci, wiq_90per_ci, niq_90per_ci, nis_90per_ci = np.zeros((3, 11), dtype='f,f'), np.zeros((3, 11), dtype='f,f'), np.zeros((3, 11), dtype='f,f'), np.zeros((3, 11), dtype='f,f')
 
     # Individual Classes
-    nClasses = 2
     nRow = len(mu_prime_list) * nClasses
     tis_mean_by_class, wiq_mean_by_class, niq_mean_by_class, nis_mean_by_class = np.zeros(
         (nRow, 11)), np.zeros((nRow, 11)), np.zeros(
@@ -41,18 +42,28 @@ def simulation(nCustomer, nReplications):
         (nRow, 11), dtype='f,f'), np.zeros(
         (nRow, 11), dtype='f,f'), np.zeros((nRow, 11), dtype='f,f'), np.zeros((nRow, 11), dtype='f,f')
 
+    # Exact Analysis
+    tis_PK_mean, wiq_PK_mean, niq_PK_mean, nis_PK_mean = np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11))
+    wiq_PK_90per, tis_PK_90per, niq_PK_90per, nis_PK_90per = np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11)), np.zeros((3,11))
+
     for i, mu_prime in enumerate(mu_prime_list):
         for j, p_interv in enumerate(p_intervention_list):
             print("Parameters: mu_prime={}, p_intervention={}".format(mu_prime, p_interv))
-            # q_ = multi_class_single_station_fcfs(lambda_ = lam, classes = [0], probs = [1.0],
-            #              mus = [mu], prob_speedup=[p_interv], mus_speedup=[mu_prime],
-            #              servers = 1)
-            q_ = multi_class_single_station_fcfs(lambda_=lam, classes=[0, 1], probs=[0.5, 0.5],
-                                                 mus=[mu, mu], prob_speedup=[p_interv, 0.0], mus_speedup=[mu_prime, mu_prime],
-                                                 servers=1)
+            q_ = multi_class_single_station_fcfs(lambda_ = lam, classes = [0], probs = [1.0],
+                         mus = [mu], prob_speedup=[p_interv], mus_speedup=[mu_prime],
+                         servers = 1)
+            # q_ = multi_class_single_station_fcfs(lambda_=lam, classes=[0, 1], probs=[0.5, 0.5],
+            #                                      mus=[mu, mu], prob_speedup=[p_interv, 0.0], mus_speedup=[mu_prime, mu_prime],
+            #                                      servers=1)
 
             q_.simulate_q(customers=nCustomer, runs=nReplications)
+            # q_ = multi_class_single_station_priority(lambda_=1, classes=[0, 1], probs=[0.5, 0.5],
+            #                                                    mus=[0.5, 2],
+            #                                                    prob_speedup=[0.0, 0.0], mus_speedup=[5, 2], servers=2,
+            #                                                    priority=[0, 1])
+            # q_.simulate_priority_q(customers=nCustomer, runs=nReplications)
 
+            # ------------------------------------------- SIMULATION -------------------------------------------
             # Time in System
             los_mean_all, los_mean_all_ci, los_mean_percentile90_all, los_mean_percentile90_all_ci, los_means, los_means_ci, los_mean_percentile90s, los_mean_percentile90s_ci = los_wiq(
                 q_, confidence_level, nReplications, los=True)
@@ -105,43 +116,52 @@ def simulation(nCustomer, nReplications):
                 nis_90per_ci_by_class[i + offset, j] = (nis_mean_percentile90s_ci[0][k], nis_mean_percentile90s_ci[1][k])
                 offset += len(mu_prime_list)
 
+            # ------------------------------------------- EXACT ANALYSIS -------------------------------------------
+            wiq_PK_mean[i, j], tis_PK_mean[i, j], niq_PK_mean[i, j], nis_PK_mean[i, j] = compute_PK_means(lam, mu,
+                                                                                                          mu_prime,
+                                                                                                          p_interv)
+            wiq_PK_90per[i, j], tis_PK_90per[i, j], niq_PK_90per[i, j], nis_PK_90per[i, j] = compute_PK_90percentiles(lam, mu,
+                                                                                                          mu_prime,
+                                                                                                          p_interv)
+
     # Plotting Graphs (All Classes)
     plot_mean_90percentile_with_CI(tis_mean, tis_ci, tis_90per, tis_90per_ci,
                                    "Time in System With 95% Confidence Interval, {} Customers, {} Replications, {} Classes (All)".format(
-                                       nCustomer, nReplications, nClasses))
+                                       nCustomer, nReplications, nClasses), tis_PK_mean, tis_PK_90per)
     plot_mean_90percentile_with_CI(wiq_mean, wiq_ci, wiq_90per, wiq_90per_ci,
                                    "Wait Time in Queue With 95% Confidence Interval, {} Customers, {} Replications, {} Classes (All)".format(
-                                       nCustomer, nReplications, nClasses))
+                                       nCustomer, nReplications, nClasses), wiq_PK_mean, wiq_PK_90per)
     plot_mean_90percentile_with_CI(niq_mean, niq_ci, niq_90per, niq_90per_ci,
                                    "Number in Queue With 95% Confidence Interval, {} Customers, {} Replications, {} Classes (All)".format(
-                                       nCustomer, nReplications, nClasses))
+                                       nCustomer, nReplications, nClasses), niq_PK_mean, niq_PK_90per)
     plot_mean_90percentile_with_CI(nis_mean, nis_ci, nis_90per, nis_90per_ci,
                                    "Number in System With 95% Confidence Interval, {} Customers, {} Replications, {} Classes (All)".format(
-                                       nCustomer, nReplications, nClasses))
+                                       nCustomer, nReplications, nClasses), nis_PK_mean, nis_PK_90per)
 
-    # Plotting Graphs (Individual Classes)
-    start, end = 0, len(mu_prime_list)
-    for g in range(nClasses):
-        plot_mean_90percentile_with_CI(tis_mean_by_class[start:end], tis_mean_ci_by_class[start:end],
-                                       tis_90per_by_class[start:end], tis_90per_ci_by_class[start:end],
-                                       "Time in System With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
-                                           nCustomer, nReplications, g+1))
-        plot_mean_90percentile_with_CI(wiq_mean_by_class[start:end], wiq_mean_ci_by_class[start:end],
-                                       wiq_90per_by_class[start:end], wiq_90per_ci_by_class[start:end],
-                                       "Wait Time in Queue With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
-                                           nCustomer, nReplications, g+1))
-        plot_mean_90percentile_with_CI(niq_mean_by_class[start:end], niq_mean_ci_by_class[start:end],
-                                       niq_90per_by_class[start:end], niq_90per_ci_by_class[start:end],
-                                       "Number in Queue With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
-                                           nCustomer, nReplications, g+1))
-        plot_mean_90percentile_with_CI(nis_mean_by_class[start:end], nis_mean_ci_by_class[start:end],
-                                       nis_90per_by_class[start:end], nis_90per_ci_by_class[start:end],
-                                       "Number in System With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
-                                           nCustomer, nReplications, g+1))
-        start += len(mu_prime_list)
-        end += len(mu_prime_list)
+    # Plotting Graphs (Individual Classes For Multi-Class Systems)
+    if nClasses > 1:
+        start, end = 0, len(mu_prime_list)
+        for g in range(nClasses):
+            plot_mean_90percentile_with_CI(tis_mean_by_class[start:end], tis_mean_ci_by_class[start:end],
+                                           tis_90per_by_class[start:end], tis_90per_ci_by_class[start:end],
+                                           "Simulation: Time in System With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
+                                               nCustomer, nReplications, g+1))
+            plot_mean_90percentile_with_CI(wiq_mean_by_class[start:end], wiq_mean_ci_by_class[start:end],
+                                           wiq_90per_by_class[start:end], wiq_90per_ci_by_class[start:end],
+                                           "Simulation: Wait Time in Queue With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
+                                               nCustomer, nReplications, g+1))
+            plot_mean_90percentile_with_CI(niq_mean_by_class[start:end], niq_mean_ci_by_class[start:end],
+                                           niq_90per_by_class[start:end], niq_90per_ci_by_class[start:end],
+                                           "Simulation: Number in Queue With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
+                                               nCustomer, nReplications, g+1))
+            plot_mean_90percentile_with_CI(nis_mean_by_class[start:end], nis_mean_ci_by_class[start:end],
+                                           nis_90per_by_class[start:end], nis_90per_ci_by_class[start:end],
+                                           "Simulation: Number in System With 95% Confidence Interval, {} Customers, {} Replications, Class #{}".format(
+                                               nCustomer, nReplications, g+1))
+            start += len(mu_prime_list)
+            end += len(mu_prime_list)
 
-
+# ------------------------------------------- SIMULATION -------------------------------------------
 def los_wiq(queueing_system, confidence_level, n, los=False):
 
     if los:
@@ -224,16 +244,16 @@ def niq_nis(queueing_system, confidence_level, n, queue=False):
 
             for i in range(1, len(class_x_tracker)):
                 t_i1, t_i0 = class_x_tracker[i][0], class_x_tracker[i-1][0]
-                Num_i1 = class_x_tracker[i][1]
+                Num_i0 = class_x_tracker[i-1][1]
 
                 # E(NIQ) = sum_i=1_to_n_ [(t_i - t_i-1)*NIQ_i] / t_n; E(NIS) = sum_i=1_to_n_ [(t_i - t_i-1)*NIS_i] / t_n
-                area_by_class += (t_i1 - t_i0) * Num_i1
+                area_by_class += (t_i1 - t_i0) * Num_i0
 
                 # For 90th percentile by class
-                idx = num_sets_by_class[c].index(Num_i1)  # find the index for N = Num_i1
+                idx = num_sets_by_class[c].index(Num_i0)  # find the index for N = Num_i1
                 num_pmf_by_class[idx] += t_i1 - t_i0  # accumulate time units for N = n1, n2, ... for each class
                 # For 90th percentile of all classes
-                idx = num_set_all_classes.index(Num_i1)
+                idx = num_set_all_classes.index(Num_i0)
                 num_pmf_all_classes[idx] += t_i1 - t_i0
 
             # For expected values
@@ -298,34 +318,82 @@ def compute_mean_and_CI(data, confidence_level, n, all_classes=False):
         data_mean_ci = t.interval(confidence_level, n - 1, data_mean, data_mean_stderr)
     return data_mean, data_mean_ci
 
+# ------------------------------------------- EXACT ANALYSIS -------------------------------------------
+def compute_PK_means(lam, mu, mu_prime, p_intervention):
+    expected_S = (1 - p_intervention)/mu + p_intervention/mu_prime  # first moment
+    expected_S_sq = (2/(mu*mu)) * (1 - p_intervention) + (2/(mu_prime*mu_prime)) * p_intervention  # second moment
+    rho = lam * expected_S
+    expected_W = (lam * expected_S_sq) / (2 * (1 - rho))
+    expected_T = expected_S + expected_W
+    expected_Nq = lam * expected_W
+    expected_N = lam * expected_T
+    return expected_W, expected_T, expected_Nq, expected_N
 
-def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci, plot_type):
+def compute_PK_90percentiles(lam, mu1, mu_prime, p_intervention):
+    sojournDone, waitingDone = False, False
+    time = 1e-08
+    percentile90_T, percentile90_W = 0, 0
+    time_increment = 0.25
+    rho = (mu1*p_intervention + mu_prime*(1-p_intervention)) / (mu1*mu_prime) * lam
+    # Laplace transform formula for service time
+    S_star = lambda w: (1-p_intervention)*(mu1/(w+mu1)) + p_intervention*mu_prime/(w+mu_prime)
+    # PK transform formula for the sojourn time
+    T_star = lambda w: (1-rho)*w*S_star(w) / (w-lam+lam*S_star(w))
+    # PK transform formula for the waiting time
+    W_star = lambda w: (1-rho)*w / (w-lam+lam*S_star(w))
+    while not (sojournDone and waitingDone):
+        if not sojournDone:
+            sojourn = float(invertlaplace(lambda w: T_star(w) / w, time, method='talbot'))
+            if sojourn >= 0.9:
+                percentile90_T = time
+                sojournDone = True
+        if not waitingDone:
+            waiting = float(invertlaplace(lambda w: W_star(w) / w, time, method='talbot'))
+            if waiting >= 0.9:
+                percentile90_W = time
+                waitingDone = True
+        if not (sojourn >= 0.9 and waiting >= 0.9):
+            time += time_increment
+    percentile90_Nq = lam * percentile90_W
+    percentile90_N = lam * percentile90_T
+    return percentile90_W, percentile90_T, percentile90_Nq, percentile90_N
+
+# ------------------------------------------- GENERATING PLOT -------------------------------------------
+def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci, plot_type, exact_mean=None, exact_percentile=None):
     x = np.linspace(0, 1, 11)
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.suptitle(plot_type)
     fig.set_size_inches(12, 6)
 
     # Plotting Expected Values
-    y1, y2, y3 = mean[0], mean[1], mean[2]
+    y1_sim, y2_sim, y3_sim = mean[0], mean[1], mean[2]
     ci1_lower, ci1_upper = [mean_ci[0][i][0] for i in range(len(mean_ci[0]))], [mean_ci[0][i][1] for i in
                                                                                 range(len(mean_ci[0]))]
     ci2_lower, ci2_upper = [mean_ci[1][i][0] for i in range(len(mean_ci[1]))], [mean_ci[1][i][1] for i in
                                                                                 range(len(mean_ci[0]))]
     ci3_lower, ci3_upper = [mean_ci[2][i][0] for i in range(len(mean_ci[2]))], [mean_ci[2][i][1] for i in
                                                                                 range(len(mean_ci[0]))]
-
-    ax1.plot(x, y1, 'b', label='mu_prime=2')
+    # Simulation
+    ax1.plot(x, y1_sim, color='b', label='Simulation: mu_prime=2', linestyle='-')
     ax1.fill_between(x, ci1_lower, ci1_upper, color='b', alpha=0.1)
-    ax1.plot(x, y2, 'g', label='mu_prime=2.5')
+    ax1.plot(x, y2_sim, color='g', label='Simulation: mu_prime=2.5', linestyle='-')
     ax1.fill_between(x, ci2_lower, ci2_upper, color='g', alpha=0.1)
-    ax1.plot(x, y3, 'r', label='mu_prime=3')
+    ax1.plot(x, y3_sim, color='r', label='Simulation: mu_prime=3', linestyle='-')
     ax1.fill_between(x, ci3_lower, ci3_upper, color='r', alpha=0.1)
+
+    if exact_mean is not None:
+        # Exact Analysis
+        y1_exact, y2_exact, y3_exact = exact_mean[0], exact_mean[1], exact_mean[2]
+        ax1.plot(x, y1_exact, color='b', label='Exact Analysis: mu_prime=2', linestyle='--')
+        ax1.plot(x, y2_exact, color='g', label='Exact Analysis: mu_prime=2.5', linestyle='--')
+        ax1.plot(x, y3_exact, color='r', label='Exact Analysis: mu_prime=3', linestyle='--')
+
     ax1.set(xlabel = 'P(speedup)', ylabel = 'Expected Value')
     # ax1.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
     ax1.legend()
 
     # Plotting 90th Percentiles
-    y90p1, y90p2, y90p3 = percentile90[0], percentile90[1], percentile90[2]
+    y90p1_sim, y90p2_sim, y90p3_sim = percentile90[0], percentile90[1], percentile90[2]
     ci90p1_lower, ci90p1_upper = [percentile90_ci[0][i][0] for i in range(len(percentile90_ci[0]))], [
         percentile90_ci[0][i][1] for i in range(len(percentile90_ci[0]))]
     ci90p2_lower, ci90p2_upper = [percentile90_ci[1][i][0] for i in range(len(percentile90_ci[1]))], [
@@ -333,12 +401,20 @@ def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci,
     ci90p3_lower, ci90p3_upper = [percentile90_ci[2][i][0] for i in range(len(percentile90_ci[2]))], [
         percentile90_ci[2][i][1] for i in range(len(percentile90_ci[0]))]
 
-    ax2.plot(x, y90p1, 'b', label='mu_prime=2')
+    ax2.plot(x, y90p1_sim, color='b', label='Simulation: mu_prime=2', linestyle='-')
     ax2.fill_between(x, ci90p1_lower, ci90p1_upper, color='b', alpha=0.1)
-    ax2.plot(x, y90p2, 'g', label='mu_prime=2.5')
+    ax2.plot(x, y90p2_sim, color='g', label='Simulation: mu_prime=2.5', linestyle='-')
     ax2.fill_between(x, ci90p2_lower, ci90p2_upper, color='g', alpha=0.1)
-    ax2.plot(x, y90p3, 'r', label='mu_prime=3')
+    ax2.plot(x, y90p3_sim, color='r', label='Simulation: mu_prime=3', linestyle='-')
     ax2.fill_between(x, ci90p3_lower, ci90p3_upper, color='r', alpha=0.1)
+
+    if exact_percentile is not None:
+        # Exact Analysis
+        y90p1_exact, y90p2_exact, y90p3_exact = exact_percentile[0], exact_percentile[1], exact_percentile[2]
+        ax2.plot(x, y90p1_exact, color='b', label='Exact Analysis: mu_prime=2', linestyle='--')
+        ax2.plot(x, y90p2_exact, color='g', label='Exact Analysis: mu_prime=2.5', linestyle='--')
+        ax2.plot(x, y90p3_exact, color='r', label='Exact Analysis: mu_prime=3', linestyle='--')
+
     ax2.set(xlabel='P(speedup)', ylabel='90th Percentile')
     # ax2.legend(('mu_prime=2', 'mu_prime=2.5', 'mu_prime=3'))
     ax2.legend()
@@ -348,5 +424,5 @@ def plot_mean_90percentile_with_CI(mean, mean_ci, percentile90, percentile90_ci,
 
 
 if __name__ == "__main__":
-    nCustomer, nReplications = 10000, 30
-    simulation(nCustomer, nReplications)
+    nCustomer, nReplications, nClasses = 10000, 30, 1
+    simulation(nCustomer, nReplications, nClasses)
