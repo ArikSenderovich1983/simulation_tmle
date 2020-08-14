@@ -259,6 +259,7 @@ class multi_class_single_station_fcfs:
             df['elapsed'] = 0.0  # time elapsed since customer's arrival
             df['arrival_time'] = 0.0
             df['id_run'] = ""
+            df['S'] = 0.0
             cur_id = df.at[0,'id']
             cur_start = df.at[0,'timestamp']
             # df['FriendsID'] = " "
@@ -289,8 +290,8 @@ class multi_class_single_station_fcfs:
                 # df.at[i,'nFriends'] = len(temp_friends[df.at[i, 'id']])
 
             offset = offset + max(df['timestamp']) # the next simulation run starts at the offset time
-            # print('Average LOS per run: ')
-            # print(np.mean(df[df.event_type == 'd']['elapsed']))
+            print('Average LOS per run: ')
+            print(np.mean(df[df.event_type == 'd']['elapsed']))
 
             df['SLA'] = 0
             if quant_flag:
@@ -339,29 +340,29 @@ class multi_class_single_station_fcfs:
                 filename = "data_WIQ_TIS"
                 save_path = os.path.join(directory, filename+".csv")
                 df[df.event_type == 'd'].loc[:,
-                ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed']].to_csv(save_path,
+                ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'S', 'elapsed']].to_csv(save_path,
                                                                                                    mode=mode_,
                                                                                                    index=False,
                                                                                                    header=header_)
                 # wait time = service start time - arrival time
-                df[df.event_type == 's'].loc[:,
-                ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed']].to_csv(save_path,
-                                                                                                   mode='a',
-                                                                                                   index=False,
-                                                                                                   header=False)
+                #df[df.event_type == 's'].loc[:,
+                #['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'S', 'elapsed']].to_csv(save_path,
+                #                                                                                   mode='a',
+                #                                                                                   index=False,
+                #                                                                                   header=False)
                 # "intervention_data.csv" generator
                 if j == 0:
                     # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', index=False, header=True)
                     # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp', 'event_type','C', 'A', 'FriendsID','nFriends','elapsed', 'SLA']].to_csv('intervention_data.csv', index=False, header=True)
                     df[df.event_type == 'd'].loc[:,
-                    ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed', 'SLA']].to_csv(
+                    ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'S', 'elapsed', 'SLA']].to_csv(
                         'intervention_data.csv', index=False, header=True)
 
                 else:
                     # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
                     # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp','event_type','C', 'A', 'FriendsID','nFriends', 'elapsed','SLA']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
                     df[df.event_type == 'd'].loc[:,
-                    ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed', 'SLA']].to_csv(
+                    ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'S', 'elapsed', 'SLA']].to_csv(
                         'intervention_data.csv', mode='a', index=False, header=False)
 
 
@@ -491,9 +492,19 @@ if __name__ == "__main__":
     #
     # q_2.generate_data(sla_ = q_.sla_levels, quant_flag=False, write_file = False)
     # q_2.performance_los()
+    mu_list = [2, 2.5, 3]
+    for mu_ in mu_list:
+        q_3 = multi_class_single_station_fcfs(lambda_=1, classes=[0], probs=[1.0],
+                                             mus=[1.1], prob_speedup=[0.5], mus_speedup=[mu_],
+                                             servers=1, laplace_params=[0, 0.5])
+        q_3.simulate_q(customers=10000, runs=1, system_type=1)
+        q_3.performance_los()
+        q_3.generate_data(sla_=0.9, quant_flag=True, write_file=True)
 
-    q_3 = multi_class_single_station_fcfs(lambda_=1, classes=[0], probs=[1.0],
-                                         mus=[1.1], prob_speedup=[0.5], mus_speedup=[11],
-                                         servers=1, laplace_params=[0, 0.5])
-    q_3.simulate_q(customers=100, runs=3, system_type=1)
-    q_3.generate_data(sla_=0.9, quant_flag=True, write_file=True)
+        #q_4 = multi_class_single_station_fcfs(lambda_=1, classes=[0], probs=[1.0],
+         #                                    mus=[1.1], prob_speedup=[0.5], mus_speedup=[mu_],
+          #                                   servers=1, laplace_params=[0, 0.5])
+        #q_4.simulate_q(customers=10000, runs=1, system_type=1)
+        #q_4.performance_los()
+
+        #q_4.generate_data(sla_=q_3.sla_levels, quant_flag=False, write_file=False)
