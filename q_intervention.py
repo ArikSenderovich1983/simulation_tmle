@@ -102,10 +102,10 @@ class multi_class_single_station_fcfs:
                             done = True
 
             event_log = []
-            queue_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
-            nis_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
-            los_tr = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
-            wait_tr = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
+            queue_tr = [[(0, 0)] for _ in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
+            nis_tr = [[(0, 0)] for _ in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
+            los_tr = [[] for _ in self.classes_]  # [[timestamp, timestamp, ...], ...]
+            wait_tr = [[] for _ in self.classes_]  # [[timestamp, timestamp, ...], ...]
             # four types of events: arrival, departure = 'a', 'd' queue and service (queue start and service start)
             # every tuple is (timestamp, event_type, customer id, server_id)
             event_calendar = [(a, 'a', i, -1) for i,a in enumerate(sim_arrival_times)]
@@ -115,8 +115,8 @@ class multi_class_single_station_fcfs:
             hq.heapify(queue)
             # heap is ordered by timestamp - every element is (timestamp, station)
             # need to manage server assignment
-            in_service = [0 for s in range(self.servers)]  # 0 = not in service; 1 = in service
-            server_assignment = [0 for s in range(self.servers)]
+            in_service = [0 for _ in range(self.servers)]  # 0 = not in service; 1 = in service
+            server_assignment = [0 for _ in range(self.servers)]
             # temp_friends = {}
 
             # keep going if there are still events waiting to occur
@@ -231,14 +231,16 @@ class multi_class_single_station_fcfs:
 
     def generate_data(self, **kwargs):
         # generating data for intervention experiments
-        sla_q = kwargs.get('sla_', 0.9)  # service level agreement
+        # sla_q = kwargs.get('sla_', 0.9)  # service level agreement
 
-        quant_flag = kwargs.get('quant_flag',True)
+        # quant_flag = kwargs.get('quant_flag',True)
         write_file = kwargs.get('write_file', True)
 
         offset = 0.0  # time at the end of last run
-        self.avg_sla_value = 0
-        avg_sla_q = 0
+        # self.avg_sla_value = 0
+        # avg_sla_q = 0
+
+        directory, folder = "", ""
 
         # iterate through each event log (simulation run) in simulation data
         for j,e_l in enumerate(self.data):
@@ -286,16 +288,16 @@ class multi_class_single_station_fcfs:
             # print('Average LOS per run: ')
             # print(np.mean(df[df.event_type == 'd']['elapsed']))
 
-            df['SLA'] = 0
-            if quant_flag:
-                sla_ = np.quantile(df[df.event_type == 'd']['elapsed'], q=sla_q)  # np.mean(df['elapsed'])
-            else:
-                sla_ = sla_q[j]
-            self.sla_levels.append(sla_)
-
-            for i in range(len(df)):
-                if df.at[i, 'elapsed'] > sla_:
-                    df.at[i, 'SLA'] = 1
+            # df['SLA'] = 0
+            # if quant_flag:
+            #     sla_ = np.quantile(df[df.event_type == 'd']['elapsed'], q=sla_q)  # np.mean(df['elapsed'])
+            # else:
+            #     sla_ = sla_q[j]
+            # self.sla_levels.append(sla_)
+            #
+            # for i in range(len(df)):
+            #     if df.at[i, 'elapsed'] > sla_:
+            #         df.at[i, 'SLA'] = 1
             # print("Sla level:")
             # print(sum(df[df.event_type == 'd']['SLA']) / len(df[df.event_type == 'd']))
 
@@ -305,19 +307,20 @@ class multi_class_single_station_fcfs:
                 cwd = os.getcwd() # get current working directory
                 # single type of customers
                 if len(self.mus) == 1:
-                    folder = "Lambda{}Mu{}ProbIntervention{}MuSpeedup{}".format(self.lambda_, self.mus[0],
+                    folder = "FCFS - Lambda{}Mu{}P(Interv){}MuPrime{}".format(self.lambda_, self.mus[0],
                                                                                 self.probs_speedup[0],
                                                                                 self.mus_speedup[0])
                 # two types of customers
                 elif len(self.mus) == 2:
-                    folder = "Lambda{}Mu1{}Mu2{}p1{}ProbIntervention{}Mu1Speedup{}Mu2Speedup{}".format(self.lambda_,
-                                                                                                   self.mus[0],
-                                                                                                   self.mus[1],
-                                                                                                   self.probs[0],
-                                                                                                   self.probs_speedup[
-                                                                                                       0],
-                                                                                                   self.mus_speedup[0],
-                                                                                                   self.mus_speedup[1])
+                    folder = "FCFS - LamOne{}LamTwo{}MuOne{}MuTwo{}P(C1){}P(C1_Interv){}P(C2_Interv){}MuOnePrime{}MuTwoPrime{}".format(self.lambda_,
+                                                                                                                                       self.lambda_,
+                                                                                                                                       self.mus[0],
+                                                                                                                                       self.mus[1],
+                                                                                                                                       self.probs[0],
+                                                                                                                                       self.probs_speedup[0],
+                                                                                                                                       self.probs_speedup[1],
+                                                                                                                                       self.mus_speedup[0],
+                                                                                                                                       self.mus_speedup[1])
                 # todo: more than 2 types of customers?
 
                 directory = os.path.join(cwd, folder)
@@ -343,19 +346,19 @@ class multi_class_single_station_fcfs:
                                                                                                    index=False,
                                                                                                    header=False)
                 # "intervention_data.csv" generator
-                if j == 0:
-                    # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', index=False, header=True)
-                    # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp', 'event_type','C', 'A', 'FriendsID','nFriends','elapsed', 'SLA']].to_csv('intervention_data.csv', index=False, header=True)
-                    df[df.event_type == 'd'].loc[:,
-                    ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed', 'SLA']].to_csv(
-                        'intervention_data.csv', index=False, header=True)
-
-                else:
-                    # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
-                    # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp','event_type','C', 'A', 'FriendsID','nFriends', 'elapsed','SLA']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
-                    df[df.event_type == 'd'].loc[:,
-                    ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed', 'SLA']].to_csv(
-                        'intervention_data.csv', mode='a', index=False, header=False)
+                # if j == 0:
+                #     # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', index=False, header=True)
+                #     # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp', 'event_type','C', 'A', 'FriendsID','nFriends','elapsed', 'SLA']].to_csv('intervention_data.csv', index=False, header=True)
+                #     df[df.event_type == 'd'].loc[:,
+                #     ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed', 'SLA']].to_csv(
+                #         'intervention_data.csv', index=False, header=True)
+                #
+                # else:
+                #     # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
+                #     # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp','event_type','C', 'A', 'FriendsID','nFriends', 'elapsed','SLA']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
+                #     df[df.event_type == 'd'].loc[:,
+                #     ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed', 'SLA']].to_csv(
+                #         'intervention_data.csv', mode='a', index=False, header=False)
 
 
         # generate files: 2) Queue/Number, 3) System/Number
@@ -404,7 +407,7 @@ class multi_class_single_station_fcfs:
     def performance_los(self):
 
         run_avg_los = 0
-        run_avg_los_class = [0 for c in self.classes_]
+        run_avg_los_class = [0 for _ in self.classes_]
 
         for run, queue in enumerate(self.queue_tracker):
             print("Run #" + str(run+1))
@@ -435,6 +438,7 @@ class multi_class_single_station_fcfs:
         for c in self.classes_:
             print("LOS per class " + str(c) + ": " + str(run_avg_los_class[c] / len(self.los_tracker)))
 
+
 if __name__ == "__main__":
     # q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0], probs = [1.0],
     #                                      mus = [1.1], prob_speedup=[0.5], mus_speedup=[11],
@@ -461,10 +465,10 @@ if __name__ == "__main__":
     # q_2.performance_los()
 
     q_3 = multi_class_single_station_fcfs(lambda_=1, classes=[0], probs=[1.0],
-                                         mus=[1.1], prob_speedup=[0.5], mus_speedup=[11],
+                                         mus=[1.1], prob_speedup=[0.5], mus_speedup=[2],
                                          servers=1, laplace_params=[0, 0.5])
     q_3.simulate_q(customers=100, runs=3, system_type=1)
-    q_3.generate_data(sla_=0.9, quant_flag=True, write_file=True)
+    q_3.generate_data()
     '''
     q_ = multi_class_single_station_fcfs(lambda_ = 1, classes = [0,1], probs = [0.5,0.5],
                                          mus = [0.5,2], prob_speedup=[0.3,0.0], mus_speedup=[5,2],

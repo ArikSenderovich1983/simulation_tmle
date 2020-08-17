@@ -1,6 +1,8 @@
+import pandas as pd
 from resource import *
 import heapq as hq
 import numpy as np
+import os
 
 class multi_class_single_station_priority:
     # defining the queueing system using given parameters
@@ -58,7 +60,6 @@ class multi_class_single_station_priority:
             classes_ = []
             interv_ = []
 
-            # system_type: 1 = M/G/1, 2 = G/G/1 (appointment)
             for c in range(customers):
                 # simulate next arrival
                 # next arrival time: t_ + inter-arrival_time
@@ -82,10 +83,10 @@ class multi_class_single_station_priority:
                         Distribution(dist_type=DistributionType.exponential, rate=self.mus_speedup[c_]).sample())
 
             event_log = []
-            queue_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
-            nis_tr = [[(0, 0)] for c in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
-            los_tr = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
-            wait_tr = [[] for c in self.classes_]  # [[timestamp, timestamp, ...], ...]
+            queue_tr = [[(0, 0)] for _ in self.classes_]  # [[(timestamp, Nq), (timestamp, Nq), ...], ...]
+            nis_tr = [[(0, 0)] for _ in self.classes_]  # [[(timestamp, NIS), (timestamp, NIS), ...], ...]
+            los_tr = [[] for _ in self.classes_]  # [[timestamp, timestamp, ...], ...]
+            wait_tr = [[] for _ in self.classes_]  # [[timestamp, timestamp, ...], ...]
             # four types of events: arrival, departure = 'a', 'd' queue and service (queue start and service start)
             # every tuple is (timestamp, event_type, customer id, server_id)
             event_calendar = [(a, 'a', i, -1, self.priority[classes_[i]]) for i, a in enumerate(sim_arrival_times)]
@@ -95,8 +96,8 @@ class multi_class_single_station_priority:
             hq.heapify(queue)
             # heap is ordered by timestamp - every element is (timestamp, station)
             # need to manage server assignment
-            in_service = [0 for s in range(self.servers)]  # 0 = not in service; 1 = in service
-            server_assignment = [0 for s in range(self.servers)]
+            in_service = [0 for _ in range(self.servers)]  # 0 = not in service; 1 = in service
+            server_assignment = [0 for _ in range(self.servers)]
             # temp_friends = {}
 
             # keep going if there are still events waiting to occur
@@ -207,13 +208,145 @@ class multi_class_single_station_priority:
         print('Done simulating...')
 
 
-if __name__ == "__main__":
-    q_priority_1 = multi_class_single_station_priority(lambda_=1, classes=[0], probs=[1.0], mus=[1.1],
-                                                       prob_speedup=[0.5], mus_speedup=[11], servers=1,
-                                                       priority=[0])
-    q_priority_1.simulate_priority_q(customers=100, runs=3)
+    def generate_data(self, **kwargs):
+        # generating data for intervention experiments
+        write_file = kwargs.get('write_file', True)
 
-    q_priority_2 = multi_class_single_station_priority(lambda_=1, classes=[0, 1], probs=[0.5, 0.5], mus = [0.5,2],
-                                                       prob_speedup=[0.0,0.0], mus_speedup=[5,2], servers = 2,
+        offset = 0.0  # time at the end of last run
+        directory, folder = "", ""
+
+        # iterate through each event log (simulation run) in simulation data
+        for j,e_l in enumerate(self.data):
+            # print("Run #"+str(j+1))
+
+            # creating a data-frame to manage the event logs
+            # one per simulation run - we will later want to compare interventions
+            df = pd.DataFrame(e_l, columns=['timestamp', 'event_type', 'id', 'A', 'C'])
+            # two things: we both want plots to see if the simulator makes sense, and create synthetic data
+            # print(df.head(5))
+            # order by id and timestamp there may be tie between a and q - we don't care
+            df.sort_values(by=['id','timestamp'], inplace=True)
+            df.reset_index(drop=True,inplace=True)
+
+            # add additional columns to the DataFrame
+            df['elapsed'] = 0.0  # time elapsed since customer's arrival
+            df['arrival_time'] = 0.0
+            df['id_run'] = ""
+            cur_id = df.at[0,'id']
+            cur_start = df.at[0,'timestamp']
+            # df['FriendsID'] = " "
+            # df['nFriends'] = 0
+            # temp_friends = self.friends[j]
+
+            # go through each event in the DataFrame
+            for i in range(len(df)):
+                df.at[i,'id_run'] = str(df.at[i,'id'])+"_"+str(j)
+
+                # if the event corresponds to the current customer
+                if cur_id == df.at[i,'id']:
+                    df.at[i, 'arrival_time'] = cur_start + offset
+                    df.at[i,'elapsed'] = df.at[i,'timestamp'] - cur_start
+                    #print(df.at[i,'event_type'])
+                    #input("Press Enter to continue...")
+
+                # if the event does not correspond to the current customer, events for the next customer starts
+                else:
+                    cur_id = df.at[i, 'id']  # set current customer to the customer for the event
+                    cur_start = df.at[i,'timestamp'].copy()  # advance the current start time to the time of event
+                    df.at[i,'arrival_time'] = cur_start + offset
+                # df.at[i,'FriendsID'] = " ".join(map(str, temp_friends[df.at[i,'id']]))
+                # df.at[i,'nFriends'] = len(temp_friends[df.at[i, 'id']])
+
+            offset = offset + max(df['timestamp']) # the next simulation run starts at the offset time
+            # print('Average LOS per run: ')
+            # print(np.mean(df[df.event_type == 'd']['elapsed']))
+
+
+            # generate csv files
+            if write_file:
+                # save generated data in a folder in the current working directory
+                cwd = os.getcwd() # get current working directory
+                # single type of customers
+                if len(self.mus) == 1:
+                    folder = "Priority (Non-preemptive) - Lambda{}Mu{}P(Interv){}MuPrime{}".format(self.lambda_, self.mus[0],
+                                                                              self.probs_speedup[0], self.mus_speedup[0])
+                # two types of customers
+                elif len(self.mus) == 2:
+                    folder = "Priority (Non-preemptive) - LamOne{}LamTwo{}MuOne{}MuTwo{}P(C1){}P(C1_Interv){}P(C2_Interv){}MuOnePrime{}MuTwoPrime{}".format(
+                        self.lambda_, self.lambda_, self.mus[0], self.mus[1], self.probs[0], self.probs_speedup[0],
+                        self.probs_speedup[1], self.mus_speedup[0], self.mus_speedup[1])
+                # todo: more than 2 types of customers?
+
+                directory = os.path.join(cwd, folder)
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+
+                # generate file: 1) Queue/Waiting and System/Time
+
+                header_ = True if j == 0 else False
+                mode_ = 'w' if j == 0 else 'a'
+                # file_1: Queue/Waiting and System/Time
+                filename = "data_WIQ_TIS"
+                save_path = os.path.join(directory, filename+".csv")
+                df[df.event_type == 'd'].loc[:,
+                ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed']].to_csv(save_path,
+                                                                                                   mode=mode_,
+                                                                                                   index=False,
+                                                                                                   header=header_)
+                # wait time = service start time - arrival time
+                df[df.event_type == 's'].loc[:,
+                ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'elapsed']].to_csv(save_path,
+                                                                                                   mode='a',
+                                                                                                   index=False,
+                                                                                                   header=False)
+
+
+        # generate files: 2) Queue/Number, 3) System/Number
+        if write_file:
+            # file_2: Queue/Number
+            filename = "data_NIQ"
+            save_path = os.path.join(directory, filename + ".csv")
+            for r, queue_tr in enumerate(self.queue_tracker):
+                df_niq = pd.DataFrame(columns=['run', 'timestamp', 'class_id', 'Number_in_Queue'])
+                offset = 0
+                for class_ in self.classes_:
+                    for i, queue in enumerate(queue_tr[class_]):
+                        df_niq.loc[i + offset] = [r+1, queue[0], class_, queue[1]]
+                        offset += len(queue_tr[class_])
+
+                df_niq.sort_values(by=['timestamp'], inplace=True)  # order by timestamp
+                df_niq.reset_index(drop=True, inplace=True)
+
+                if r == 0:
+                    df_niq.to_csv(save_path, index=False, header=True)
+                else:
+                    df_niq.to_csv(save_path, mode='a', index=False, header=False)
+
+            # file_3: System/Number
+            filename = "data_NIS"
+            save_path = os.path.join(directory, filename + ".csv")
+            for r, nis_tr in enumerate(self.nis_tracker):
+                df_nis = pd.DataFrame(columns=['run', 'timestamp', 'class_id', 'Number_in_System'])
+                offset = 0
+                for class_ in self.classes_:
+                    for i, system in enumerate(nis_tr[class_]):
+                        df_nis.loc[i + offset] = [r+1, system[0], class_, system[1]]
+                        offset += len(nis_tr[class_])
+
+                df_nis.sort_values(by=['timestamp'], inplace=True)  # order by timestamp
+                df_nis.reset_index(drop=True, inplace=True)
+
+                if r == 0:
+                    df_nis.to_csv(save_path,index=False,header=True)
+                else:
+                    df_nis.to_csv(save_path, mode='a', index=False, header=False)
+
+        # print("Average SLA value: "+str(np.mean(self.sla_levels)))
+
+
+if __name__ == "__main__":
+    q_priority_1 = multi_class_single_station_priority(lambda_=1, classes=[0, 1], probs=[0.5, 0.5], mus = [1.1, 1.1],
+                                                       prob_speedup=[0.5, 0.5], mus_speedup=[2, 2], servers = 1,
                                                        priority=[0, 1])
-    q_priority_2.simulate_priority_q(customers=100, runs=3)
+    q_priority_1.simulate_priority_q(customers=100, runs=3)
+    q_priority_1.generate_data(write_file=True)
