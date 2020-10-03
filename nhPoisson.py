@@ -65,7 +65,7 @@ def return_intensity(t, T, Y, last_w):
     for w in range(last_w, len(T)-1):
         if t>=T[w] and t<T[w+1]:
             return Y[w], w
-def sim_NHP_Thinning(run_time,T, Y, time_windows):
+def sim_NHP_Thinning(run_time, T, Y, time_windows):
     lambda_u = max(Y)
     arrival_times = []
     count_ = 0
@@ -78,7 +78,7 @@ def sim_NHP_Thinning(run_time,T, Y, time_windows):
         if t_>run_time:
             break
         u_2 = np.random.uniform(0,1)
-        lambda_t, last_w = return_intensity(t_,T,Y, last_w)
+        lambda_t, last_w = return_intensity(t_, T, Y , last_w)
         if u_2<=lambda_t/lambda_u:
             arrival_times.append(t_)
             count_+=1

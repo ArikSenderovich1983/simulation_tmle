@@ -40,10 +40,10 @@ def simulation(nCustomer, nReplications):
                                                                                                           p_interv)
 
     parametric_tis_mean = np.array([10.14, 8.66, 5, 4.02, 2.91, 2.51, 2.11, 1.7, 1.39, 1.21, 1.01])
-    nonparametric_tis_mean = np.array([12.31, np.nan, 5, np.nan, 3.12, np.nan, np.nan, np.nan, 1.76, 1.48, 1.28])
+    nonparametric_tis_mean = np.array([9.64, 9.7, 6.2, 3.82, 3.04, 2.64, 2.27, 1.94, 0.66, 1.53, 1.26])
 
     parametric_wiq_mean = np.array([9.23, 7.79, 4.18, 3.24, 2.17, 1.82, 1.45, 1.09, 0.82, 0.67, 0.5])
-    nonparametric_wiq_mean = np.array([11.38, np.nan, 4.16, np.nan, 2.36, np.nan, np.nan, np.nan, 1.16, 0.92, 0.76])
+    nonparametric_wiq_mean = np.array([8.73, 8.82, 5.36, 3.02, 2.28, 1.93, 1.6, 1.31,  0.05, 1.77, 0.76])
 
     print("Simulation: tis_mean", tis_mean)
     print("Exact Analysis: tis_PK_mean", tis_PK_mean)
@@ -115,8 +115,8 @@ def plot_mean_4_methods(sim, exact, parametric, nonparametric, plot_name):
     # Plotting Expected Values
     plt.plot(x, sim[0], color='b', label='FCFS Simulation \n(10,000 Customers\n 1 Customer Type \n 30 Replications)', linestyle='-', marker='o')
     plt.plot(x, exact[0], color='g', label='Exact Analysis', linestyle='-', marker='o')
-    plt.plot(x, parametric, color='r', label='Parametric', linestyle='-', marker='o')
-    plt.plot(x, nonparametric, color='c', label='Nonparametric', linestyle='-', marker='o')
+    plt.plot(x, parametric, color='r', label='Known Lindley', linestyle='-', marker='o')
+    plt.plot(x, nonparametric, color='c', label='Unknown Lindley', linestyle='-', marker='o')
 
     plt.xlabel('P(speedup)')
     plt.ylabel('Expected Value')

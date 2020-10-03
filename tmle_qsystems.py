@@ -11,6 +11,12 @@ from zepid.causal.doublyrobust import TMLE, StochasticTMLE
 #from zepid.causal.doublyrobust import StochasticTMLE
 from sklearn.linear_model import TweedieRegressor
 import scipy
+from deepSuperLearner import *
+import supylearner as sl
+from lifelines import CoxPHFitter
+from pynverse import inversefunc
+import random as rd
+from KDEpy import FFTKDE
 
 # Load dependencies
 #import keras
@@ -28,6 +34,10 @@ import torch_file as tfile
 from torch_file import *
 from matplotlib import pyplot
 import pylab
+from lifelines.statistics import proportional_hazard_test
+
+
+from lifelines import WeibullAFTFitter
 
 
 
@@ -38,6 +48,9 @@ EPOCHS = 10
 
 def mg1_cf_los_nonparam_model(d_lag, s_lag, t_i, d_i, new_si):
     # predicting D_i
+
+
+    #Unknown Lindley - replaced with ReLU perceptron
     new_di = []
     new_yi = []
 
@@ -93,10 +106,13 @@ def mg1_cf_los_nonparam_model(d_lag, s_lag, t_i, d_i, new_si):
     print("Average Wait:")
     print(np.mean(np.array(new_di)))
     #print(np.mean(np.array(lindley)))
-
+    return new_yi, new_di
 
 
 def mg1_cf_los_param_model(t_i, new_si):
+
+    #known Lindley
+
     new_di = []
     new_yi = []
 
@@ -122,121 +138,65 @@ def mg1_cf_los_param_model(t_i, new_si):
     print("STDEV of LOS after change: " + str(var_d))
 
 
-    return new_yi
+    return new_yi, new_di, var_y, var_d
 
+def inv_cum_hazard(H, val):
+    #print("Value:", val)
+    for i,h in enumerate(H.values):
+        #print(H.at[i,'baseline cumulative hazard'])
+        if h[0]>=val:
+            return H.index[i]
 
-def mg1_speedup_nonparam_service_model(new_ai, s_i, a_i):
-    X_train = np.array(a_i).reshape(-1, 1)
-    y_train = np.array(s_i)  # .reshape(-1,1)
-
-    model = tfile.linear_Perceptron(1, 1)
-    print(model)
-
-    optimizer = optim.Adagrad(model.parameters(), lr=0.1, lr_decay=0.0)  # , momentum=0.5)
-
-    # data = np.concatenate(X_train,y_train, axis = 1)
-
-    for epoch in range(EPOCHS):
-        for i, X in enumerate(X_train):
-            X = Variable(torch.FloatTensor([X]), requires_grad=True)
-            Y = Variable(torch.FloatTensor([y_train[i]]), requires_grad=False)
-
-            optimizer.zero_grad()
-            outputs = model(X)
-            # loss = criterion(outputs, Y)
-            criterion = nn.MSELoss()
-
-            loss = criterion(outputs, Y)
-            loss.backward()
-            optimizer.step()
-
-            #if (i % 10000 == 0):
-            #    print("Epoch {} - loss: {}".format(epoch, loss.data))
-
-    print(list(model.parameters()))
-    residuals = []
-    for i in range(len(y_train)):
-        residuals.append(float(model(Variable(torch.Tensor([[[a_i[i] ]]]))).data[0][0][0]) - s_i[i])
-    stdev_ = np.std(np.array(residuals))
-
-    #stat, p = scipy.stats.shapiro(np.log(np.array(residuals)))
-    #print('Statistics=%.3f, p=%.3f' % (stat, p))
-    ## interpret
-    #alpha = 0.05
-    #if p > alpha:
-    ##    print('Sample looks Gaussian (fail to reject H0)')
-    #else:
-    #    print('Sample does not look Gaussian (reject H0)')
-
-
-
+def mg1_speedup_semiparam_service_model(new_ai, a_i, s_i):
+    ai_temp = []
+    for a in a_i:
+        if a==0:
+            ai_temp.append(-1)
+        else:
+            ai_temp.append(1)
+    data = {'a_i':ai_temp, 's_i':s_i, 'e_i':np.ones(len(s_i))}
+    #todo: fix this because it produces negative values
+    df = pd.DataFrame.from_dict(data)
+    cph = CoxPHFitter()
+    cph.fit(df, 's_i', 'e_i')#,strata=['a_i'])
+    #print(cph.params_)
+    #cph.print_summary()
+    #cph.baseline_cumulative_hazard_['baseline cumulative hazard'].plot()
+    #pyplot.show()
+    #pyplot.scatter(x = cph.baseline_cumulative_hazard_.index, y = cph.baseline_cumulative_hazard_['baseline cumulative hazard'])
+    #pyplot.show()
+    #print("baseline hazard: ", cph.baseline_hazard_)
+    #lp = LinearRegression(fit_intercept=False).fit(np.array(cph.baseline_cumulative_hazard_.index).reshape(-1, 1),
+     #                                              cph.baseline_cumulative_hazard_['baseline cumulative hazard'])
+    #print(lp.coef_)
+    #mean_a = np.mean(a_i)
     #input("Wait")
     new_si = []
-    for a_new in new_ai:
-        mean_ = float(model(Variable(torch.Tensor([[[a_new]]]))).data[0][0][0])
-        sample_ = mean_+np.random.normal(0,stdev_)
+    new_ai_temp = []
+    for a in new_ai:
+        if a==0:
+            new_ai_temp.append(-1)
+        else:
+            new_ai_temp.append(1)
+    for a_new in new_ai_temp:
+
+        log_U = np.log(rd.uniform(0,1))
+        sample_ = inv_cum_hazard(cph.baseline_cumulative_hazard_,-log_U * np.exp(-cph.params_[0]*a_new))
+
+        #cph.baseline_cumulative_hazard_
+        #sample_ = -log_U * np.exp(-cph.params_[0]*a_new) / lam_#inv_cum_hazard(cph.baseline_cumulative_hazard_,-log_U * np.exp(-cph.params_[0]*a_new))#cph.baseline_cumulative_hazard_
+
         if sample_<0:
             print(sample_)
+
         new_si.append(sample_)
 
     print("New s_i nonparametric", np.mean(np.array(new_si)))
-
+    #results = proportional_hazard_test(cph, df, time_transform='rank')
+    #results.print_summary(decimals=3, model="untransformed variables")
     return new_si
 
-def mg1_speedup_density_service_model(new_ai, s_i, a_i):
-    X_train = np.array(a_i).reshape(-1, 1)
-    y_train = np.array(s_i)  # .reshape(-1,1)
 
-    model = tfile.ServiceNet()
-    print(model)
-
-    optimizer = optim.Adagrad(model.parameters(), lr=0.01, lr_decay=0.0)  # , momentum=0.5)
-
-    # data = np.concatenate(X_train,y_train, axis = 1)
-
-    for epoch in range(EPOCHS):
-        for i, X in enumerate(X_train):
-            X = Variable(torch.FloatTensor([X]), requires_grad=True)
-            Y = Variable(torch.FloatTensor([y_train[i]]), requires_grad=False)
-
-            optimizer.zero_grad()
-            outputs = model(X)
-            # loss = criterion(outputs, Y)
-            criterion = nn.MSELoss()
-
-            loss = criterion(outputs, Y)
-            loss.backward()
-            optimizer.step()
-
-            #if (i % 10000 == 0):
-            #    print("Epoch {} - loss: {}".format(epoch, loss.data))
-    print("Parameters of NN:")
-    print(list(model.parameters()))
-    residuals = []
-    for i in range(len(y_train)):
-        residuals.append(float(model(Variable(torch.Tensor([[[a_i[i] ]]]))).data[0][0][0]) - s_i[i])
-    stdev_ = np.std(np.array(residuals))
-
-    #stat, p = scipy.stats.shapiro(np.log(np.array(residuals)))
-    #print('Statistics=%.3f, p=%.3f' % (stat, p))
-    ## interpret
-    #alpha = 0.05
-    #if p > alpha:
-    ##    print('Sample looks Gaussian (fail to reject H0)')
-    #else:
-    #    print('Sample does not look Gaussian (reject H0)')
-
-
-
-    #input("Wait")
-    new_si = []
-    for a_new in new_ai:
-        mean_ = float(model(Variable(torch.Tensor([[[a_new]]]))).data[0][0][0])
-        new_si.append(mean_+np.random.normal(0,stdev_))
-
-    print("New s_i nonparametric", np.mean(np.array(new_si)))
-
-    return new_si
 
 def mg1_speedup_param_service_model(new_ai, sol_m1, sol_m2):
     # ti are the same
@@ -250,37 +210,33 @@ def mg1_speedup_param_service_model(new_ai, sol_m1, sol_m2):
 
     return new_si
 
+def MLE_(a_i,t_i,s_i):
+    l, p, m1, m2 = sym.symbols('l,p,m1,m2', positive=True)
 
-def tmle_estimation_(df):
-    M1 = LinearRegression(fit_intercept=True)
-    M2 = LinearRegression(fit_intercept=True)
-    #M2 = MLPRegressor(hidden_layer_sizes=(1,), solver= 'lbfgs')
-    #M2.intercepts_ = 0
-    tml = TMLE(df, exposure='A', outcome='S')
-    tml.exposure_model('1')
-    #tml.missing_model('art + male + age0 + cd40 + cd4_rs1 + cd4_rs2 + dvl0', print_results=False)
-    tml.outcome_model('A', custom_model = M2)# custom_model=MLPRegressor(hidden_layer_sizes=(1,)), print_results=False)
-    tml.fit()
+    L1 = p ** a * (1 - p) ** (1 - a)
+    J1 = np.prod([L1.subs(a, i) for i in a_i])
+    print(J1)
 
+    L2 = l * sym.exp(-l * t)
+    J2 = np.prod([L2.subs(t, i) for i in t_i])
+    print(J2)
 
-    tml.summary()
-    #tml.run_diagnostics()
+    L3 = sym.Add((1 - a) * m1 * sym.exp(-m1 * s), a * m2 * sym.exp(-m2 * s))
+    J3 = np.prod([L3.subs({a: i, s: s_i[j]}) for j, i in enumerate(a_i)])
+    print(J3)
+    print(sym.expand_log(sym.log(J3)))
+    logJ = sym.expand_log(sym.log(J1 * J2 * J3))
+    print(logJ)
 
-    print(M2.coef_)
-    print(M2.intercept_)
+    sol_p = float(sym.solve(sym.diff(logJ, p), p)[0])
+    sol_l = float(sym.solve(sym.diff(logJ, l), l)[0])
+    sol_m1 = float(sym.solve(sym.diff(logJ, m1), m1)[0])
+    sol_m2 = float(sym.solve(sym.diff(logJ, m2), m2)[0])
 
-    return tml
+    print(sol_p, sol_l, sol_m1, sol_m2)
+    return sol_p, sol_l, sol_m1, sol_m2
 
-def main(method, filename, p_1):
-
-
-
-    # df = df.loc[0:100000,:]
-    # df.reset_index(inplace=True, drop=True)
-    df = pd.read_csv("intervention_mu_2.csv")
-
-    #p_1 = 0.7
-    print("P_star is ", p_1)
+def enrich_df(df, p_1):
     df['T'] = 0.0
     df['D'] = 0.0
     df['D_Lag'] = 0.0
@@ -288,115 +244,131 @@ def main(method, filename, p_1):
     df['A_star'] = 0
     df['A_Lag'] = 0
     for i in range(len(df)):
-        df.at[i,'D'] = df.at[i,'elapsed']-df.at[i,'S']
-        if i==0:
-            df.at[i,'T'] = df.at[i,'arrival_time']
-            #df.at[i,'D_Lag'] = 0.0
-            #df.at[i,'S_Lag'] = 0.0
+        df.at[i, 'D'] = df.at[i, 'elapsed'] - df.at[i, 'S']
+        if i == 0:
+            df.at[i, 'T'] = df.at[i, 'arrival_time']
+            # df.at[i,'D_Lag'] = 0.0
+            # df.at[i,'S_Lag'] = 0.0
 
         else:
-            df.at[i,'T']= df.at[i,'arrival_time'] - df.at[i-1,'arrival_time']
-            df.at[i,'D_Lag'] = df.at[i-1,'D']
-            df.at[i,'S_Lag'] = df.at[i-1,'S']
-            df.at[i,'A_Lag'] = df.at[i-1,'A']
-        df.at[i,'A_star'] = bernoulli.rvs(p_1, size=1)
+            df.at[i, 'T'] = df.at[i, 'arrival_time'] - df.at[i - 1, 'arrival_time']
+            df.at[i, 'D_Lag'] = df.at[i - 1, 'D']
+            df.at[i, 'S_Lag'] = df.at[i - 1, 'S']
+            df.at[i, 'A_Lag'] = df.at[i - 1, 'A']
+        df.at[i, 'A_star'] = bernoulli.rvs(p_1, size=1)
 
     c_i = list(df['arrival_time'])
     a_i = np.array(df['A'])
     s_i = np.array(df['S'])
     s_lag = np.array(df['S_Lag'])
-    #s_lag.insert(0,0.0)
+    # s_lag.insert(0,0.0)
 
-    #df.to_csv('forTMLE_MC.csv', header = True, index =False)
-
+    # df.to_csv('forTMLE_MC.csv', header = True, index =False)
 
     y_i = np.array(df['elapsed'])
-    d_i = np.array(df['D']) #[y_i[i]-s_i[i] for i in range(len(s_i))]
+    d_i = np.array(df['D'])  # [y_i[i]-s_i[i] for i in range(len(s_i))]
     print(len(d_i))
-    d_lag = np.array(df['D_Lag']) #[y_i[i-1]-s_i[i-1] for i in range(1,len(s_i))]
+    d_lag = np.array(df['D_Lag'])  # [y_i[i-1]-s_i[i-1] for i in range(1,len(s_i))]
 
-    #d_lag.append(0)
+    # d_lag.append(0)
 
-    #d_lag.insert(0,0.0)
+    # d_lag.insert(0,0.0)
 
-    print("Mean LOS: "+str(np.mean(y_i)))
-    print("Mean Wait: "+str(np.mean(d_i)))
+    print("Mean LOS: " + str(np.mean(y_i)))
+    print("Mean Wait: " + str(np.mean(d_i)))
 
-    c_i.insert(0,0.0)
+    c_i.insert(0, 0.0)
     t_i = np.array(df['T'])
     new_ai = list(np.array(df['A_star']))
 
     print(len(c_i), len(t_i), len(a_i), len(s_i))
 
-    df = df[['D', 'S', 'A', 'A_Lag', 'A_star', 'T', 'D_Lag', 'S_Lag']]#, 'C']]
+    df = df[['D', 'S', 'A', 'A_Lag', 'A_star', 'T', 'D_Lag', 'S_Lag']]  # , 'C']]
     df.reset_index(inplace=True, drop=True)
+    return a_i, t_i, s_i, new_ai, d_lag, s_lag, d_i
 
+
+def main(method, filename, p_1):
+    # df = df.loc[0:100000,:]
+    # df.reset_index(inplace=True, drop=True)
+    df = pd.read_csv(filename)
+
+    #p_1 = 0.7
+    print("P_star is ", p_1)
+
+    a_i, t_i, s_i, new_ai, d_lag, s_lag, d_i = enrich_df(df,p_1)
     #'OoBox' # 'ML'
 
 
-    if method=='param':
+    if method=='ParamKnownL':
 
-        l, p, m1, m2 = sym.symbols('l,p,m1,m2',positive=True)
-
-        L1=p**a*(1-p)**(1-a)
-        J1=np.prod([L1.subs(a,i) for i in a_i])
-        print(J1)
-
-        L2=l*sym.exp(-l*t)
-        J2=np.prod([L2.subs(t,i) for i in t_i])
-        print(J2)
-
-        L3=sym.Add((1-a)*m1*sym.exp(-m1*s),a*m2*sym.exp(-m2*s))
-        J3=np.prod([L3.subs({a:i, s:s_i[j]}) for j,i in enumerate(a_i)])
-        print(J3)
-        print(sym.expand_log(sym.log(J3)))
-        logJ = sym.expand_log(sym.log(J1*J2*J3))
-        print(logJ)
-
-        sol_p=float(sym.solve(sym.diff(logJ,p),p)[0])
-        sol_l=float(sym.solve(sym.diff(logJ,l),l)[0])
-        sol_m1=float(sym.solve(sym.diff(logJ,m1),m1)[0])
-        sol_m2=float(sym.solve(sym.diff(logJ,m2),m2)[0])
-
-        print(sol_p, sol_l, sol_m1, sol_m2)
-
+        sol_p, sol_l, sol_m1, sol_m2 = MLE_(a_i,t_i,s_i)
         #now, I need to generate new S given new p':
         new_si = mg1_speedup_param_service_model(new_ai, sol_m1, sol_m2)
-        mg1_cf_los_param_model(t_i, new_si)
+        new_yi, new_di, var_y, var_d = mg1_cf_los_param_model(t_i, new_si)
 
-    elif method=='ML':
+    elif method=='ParamUnknownL':
 
         #mg1_cf_los_nonparam_model(d_lag, s_lag, t_i, d_i, new_si)
-        new_si = mg1_speedup_nonparam_service_model(new_ai, s_i, a_i)
+
+        #new_si = mg1_speedup_nonparam_service_model(new_ai, s_i, a_i)
         #print("new si:", new_si[0:10])
         #print(len(new_si), len(new_ai))
         #input("Wait")
         #mg1_cf_los_param_model(t_i, new_si)
-        mg1_cf_los_nonparam_model(d_lag, s_lag, t_i, d_i, new_si)
+        sol_p, sol_l, sol_m1, sol_m2 = MLE_(a_i,t_i,s_i)
 
-    elif method=="TMLE":
-        tmle_estimation_(df)
+        new_si = mg1_speedup_param_service_model(new_ai, sol_m1, sol_m2)
+        new_yi, new_di = mg1_cf_los_nonparam_model(d_lag, s_lag, t_i, d_i, new_si)
 
-    elif method=="GCompute":
+    elif method == 'SemiParamKnownL':
 
-        g = TimeFixedGFormula(df, exposure='A', outcome='S',
-                              outcome_type='normal')
-        g.outcome_model(model='A')
+        # mg1_cf_los_nonparam_model(d_lag, s_lag, t_i, d_i, new_si)
 
-        g.fit_stochastic(p=p_1
-                         , seed=1000191)
-        r_80 = g.marginal_outcome
+        # new_si = mg1_speedup_nonparam_service_model(new_ai, s_i, a_i)
+        # print("new si:", new_si[0:10])
+        # print(len(new_si), len(new_ai))
+        # input("Wait")
+        # mg1_cf_los_param_model(t_i, new_si)
+        #sol_p, sol_l, sol_m1, sol_m2 = MLE_(a_i, t_i, s_i)
 
-        g.fit(treatment='none')
-        r_none = g.marginal_outcome
+        new_si = mg1_speedup_semiparam_service_model(new_ai, a_i, s_i)
+        new_yi, new_di, var_y, var_d = mg1_cf_los_param_model(t_i, new_si)
 
-        print('RD:', r_80 - r_none)
+    elif method == 'SemiParamUnknownL':
+        new_si = mg1_speedup_semiparam_service_model(new_ai, a_i, s_i)
+        new_yi, new_di = mg1_cf_los_nonparam_model(d_lag, s_lag, t_i, d_i, new_si)
+    return new_yi, new_di
 
-method = "ML"
+
+method = "ParamKnownL"
 filename = "intervention_mu_2.csv"
+data = {}
+K=1
+run_list = list(range(0,K))
+#p_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+p_list = [0.7]
 
-p_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-for p_1 in p_list:
-    main(method, filename, p_1)
+avg_yi = {}
+avg_di = {}
+for r in run_list:
+    for p_1 in p_list:
+        new_yi, new_di = main(method, filename, p_1)
+        data["Waiting_Run_"+str(r)+"Speedup_"+str(p_1)] = new_di
+        data["LOS_Run_"+str(r)+"Speedup_"+str(p_1)] = new_yi
+        if "p_1" not in avg_di:
+            avg_di["p_1"] = np.array(new_di)
+            avg_yi["p_1"] = np.array(new_yi)
 
+        else:
+            avg_di["p_1"] += (avg_di["p_1"] - np.array(new_di))/(r+1)
+            avg_yi["p_1"] += (avg_yi["p_1"] - np.array(new_yi))/(r+1)
+
+
+df_waiting = pd.DataFrame.from_dict(avg_di)
+
+df_waiting.to_csv('waiting_output_'+str(method)+'.csv')
+
+df_los = pd.DataFrame.from_dict(avg_yi)
+df_los.to_csv('los_output_'+str(method)+'.csv')
 
