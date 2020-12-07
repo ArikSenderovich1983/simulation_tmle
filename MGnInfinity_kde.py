@@ -351,15 +351,16 @@ def true_mean_stdev(filepath):
 def compute_performance_measure(queueing_system, confidence_level, nReplications):
 
     # Number in System
-    nis_num_all_classes, nis_num_all_classes_stdev, nis_num_all_classes_ci = nis(queueing_system, confidence_level, nReplications)
+    avg_mean_nis_all_classes, vars_avg_mean_nis_all_classes, stdev_avg_mean_nis_all_classes, ci_avg_mean_nis_all_classes, avg_stdev_nis_all_classes, vars_avg_stdev_nis_all_classes, stdev_avg_stdev_nis_all_classes, ci_avg_stdev_nis_all_classes = nis(
+        queueing_system, confidence_level, nReplications)
 
     # Time in System
-    tis_mean_all, tis_mean_all_stdev, tis_mean_all_ci = tis(queueing_system, confidence_level, nReplications)
+    avg_mean_tis_all_classes, vars_avg_mean_tis_all_classes, stdev_avg_mean_tis_all_classes, ci_avg_mean_tis_all_classes, avg_stdev_tis_all_classes, vars_avg_stdev_tis_all_classes, stdev_avg_stdev_tis_all_classes, ci_avg_stdev_tis_all_classes = tis(
+        queueing_system, confidence_level, nReplications)
 
     # ------------------------------------------- PRINTING RESULTS -------------------------------------------
     print("Single Class FCFS M/G(n)/Infinity Numerical Results")
-    return nis_num_all_classes, nis_num_all_classes_stdev, nis_num_all_classes_ci, tis_mean_all, tis_mean_all_stdev, tis_mean_all_ci
-
+    return avg_mean_nis_all_classes, vars_avg_mean_nis_all_classes, stdev_avg_mean_nis_all_classes, ci_avg_mean_nis_all_classes, avg_stdev_nis_all_classes, vars_avg_stdev_nis_all_classes, stdev_avg_stdev_nis_all_classes, ci_avg_stdev_nis_all_classes, avg_mean_tis_all_classes, vars_avg_mean_tis_all_classes, stdev_avg_mean_tis_all_classes, ci_avg_mean_tis_all_classes, avg_stdev_tis_all_classes, vars_avg_stdev_tis_all_classes, stdev_avg_stdev_tis_all_classes, ci_avg_stdev_tis_all_classes
 
 def tis(queueing_system, confidence_level, nReplications):
 
@@ -374,11 +375,11 @@ def tis(queueing_system, confidence_level, nReplications):
         mean_time_all_classes.append(np.mean(time_list_all_classes))
         stdev_time_all_classes.append(np.std(time_list_all_classes))
 
-    # All Classes - Mean Time
-    avg_mean_tis_all_classes, avg_stdev_tis_all_classes, ci_tis_all_classes = compute_mean_stdev_ci(
+    # All Classes - Mean Time in System
+    avg_mean, vars_avg_mean, stdev_avg_mean, ci_avg_mean, avg_stdev, vars_avg_stdev, stdev_avg_stdev, ci_avg_stdev = compute_mean_stdev_ci(
         mean_time_all_classes, stdev_time_all_classes, confidence_level, nReplications)
 
-    return avg_mean_tis_all_classes, avg_stdev_tis_all_classes, ci_tis_all_classes
+    return avg_mean, vars_avg_mean, stdev_avg_mean, ci_avg_mean, avg_stdev, vars_avg_stdev, stdev_avg_stdev, ci_avg_stdev
 
 
 def nis(queueing_system, confidence_level, nReplications):
@@ -429,21 +430,31 @@ def nis(queueing_system, confidence_level, nReplications):
         stdev_nis_all_classes = np.sqrt(var_nis_all_classes)
         stdev_numbers_all_classes.append(stdev_nis_all_classes)
 
-    # All Classes - Mean Number
-    avg_mean_nis_all_classes, avg_stdev_nis_all_classes, ci_nis_all_classes = compute_mean_stdev_ci(
+    # All Classes - Mean Number in System
+    avg_mean, vars_avg_mean, stdev_avg_mean, ci_avg_mean, avg_stdev, vars_avg_stdev, stdev_avg_stdev, ci_avg_stdev = compute_mean_stdev_ci(
         mean_numbers_all_classes, stdev_numbers_all_classes, confidence_level, nReplications)
 
-    return avg_mean_nis_all_classes, avg_stdev_nis_all_classes, ci_nis_all_classes
+    return avg_mean, vars_avg_mean, stdev_avg_mean, ci_avg_mean, avg_stdev, vars_avg_stdev, stdev_avg_stdev, ci_avg_stdev
 
 
 def compute_mean_stdev_ci(mean_data, stdev_data, confidence_level, n):
         z_vals_dict = {0.8 : 1.28, 0.9 : 1.645, 0.95 : 1.96, 0.98 : 2.33, 0.99 : 2.58}  # confidence level : z*-value
         z_val = z_vals_dict.get(confidence_level)
 
+        # print("len(mean_data)",len(mean_data))  # length = # replications
+        # print("len(stdev_data)", len(stdev_data))  # length = # replications
+
         avg_mean = np.mean(mean_data)
+        vars_avg_mean = ((np.std(mean_data))**2)*(n/(n - 1))
+        stdev_avg_mean = np.sqrt(vars_avg_mean)
+        ci_avg_mean = (avg_mean - z_val*stdev_avg_mean/np.sqrt(n), avg_mean + z_val*stdev_avg_mean/np.sqrt(n))
+
         avg_stdev = np.mean(stdev_data)
-        data_ci = (avg_mean - z_val*avg_stdev/np.sqrt(n), avg_mean + z_val*avg_stdev/np.sqrt(n))
-        return avg_mean, avg_stdev, data_ci
+        vars_avg_stdev = ((np.std(stdev_data))**2)*(n/(n - 1))
+        stdev_avg_stdev = np.sqrt(vars_avg_stdev)
+        ci_avg_stdev = (avg_stdev - z_val*stdev_avg_stdev/np.sqrt(n), avg_stdev + z_val*stdev_avg_stdev/np.sqrt(n))
+
+        return avg_mean, vars_avg_mean, stdev_avg_mean, ci_avg_mean, avg_stdev, vars_avg_stdev, stdev_avg_stdev, ci_avg_stdev
 
 def plot_percent_to_mean_real_data(data_path, plot_name, save_path):
     plt.figure()
@@ -457,8 +468,8 @@ def plot_percent_to_mean_real_data(data_path, plot_name, save_path):
     data_percent_to_mean_nis = data_nis / np.mean(data_nis) * 100
     data_percent_to_mean_tis = data_tis / np.mean(data_tis) * 100
 
-    plt.plot(data_arrival_time, data_percent_to_mean_nis, color='b', label='Percent to Mean NIS', linestyle='-')
-    plt.plot(data_arrival_time, data_percent_to_mean_tis, color='g', label='Percent to Mean TIS', linestyle='-')
+    plt.plot(data_arrival_time[1000:1100], data_percent_to_mean_nis[1000:1100], color='b', label='Percent to Mean NIS', linestyle='-')
+    plt.plot(data_arrival_time[1000:1100], data_percent_to_mean_tis[1000:1100], color='g', label='Percent to Mean TIS', linestyle='-')
 
     plt.xlabel('Arrival Time')
     plt.ylabel('Percent to Mean')
@@ -493,8 +504,8 @@ def plot_percent_to_mean_simulated_data(qs, true_mean_nis, true_mean_tis, plot_n
     data_percent_to_mean_nis = data_nis / true_mean_nis * 100
     data_percent_to_mean_tis = data_tis / true_mean_tis * 100
 
-    plt.plot(data_arrival_time, data_percent_to_mean_nis, color='b', label='Percent to Mean NIS', linestyle='-')
-    plt.plot(data_arrival_time, data_percent_to_mean_tis[0], color='g', label='Percent to Mean TIS', linestyle='-')
+    plt.plot(data_arrival_time[1000:1100], data_percent_to_mean_nis[1000:1100], color='b', label='Percent to Mean NIS', linestyle='-')
+    plt.plot(data_arrival_time[1000:1100], data_percent_to_mean_tis[0][1000:1100], color='g', label='Percent to Mean TIS', linestyle='-')
 
     plt.xlabel('Arrival Time')
     plt.ylabel('Percent to Mean')
@@ -510,18 +521,18 @@ def grid_runs(mu_list, clusters_list, nCustomers=5000, nRuns=30):
         wb.create_sheet(sheet_name)  # create a new worksheet
         ws = wb[sheet_name]  # worksheet
         df_results = pd.DataFrame(
-            columns=["Data", "Mean(Q)", "Stdev(Q)", "95%CI(Q)", "Mean(elapsed)", "Stdev(elapsed)", "95%CI(elapsed)"])
+            columns=["Data", "Mean(meanQ)", "Var(Mean(meanQ))", "Stdev(Mean(meanQ))", "95%CI(Mean(meanQ))_Lower", "95%CI(Mean(meanQ))_Upper", "Mean(stdevQ)", "Var(Mean(stdevQ))", "Stdev(Mean(stdevQ))", "95%CI(Mean(stdevQ))_Lower", "95%CI(Mean(stdevQ))_Upper", "Mean(meanElapsed)", "Var(Mean(meanElapsed))", "Stdev(Mean(meanElapsed))", "95%CI(Mean(meanElapsed))_Lower", "95%CI(Mean(meanElapsed))_Upper", "Mean(stdevElapsed)", "Var(Mean(stdevElapsed))", "Stdev(Mean(stdevElapsed))", "95%CI(Mean(stdevElapsed))_Lower", "95%CI(Mean(stdevElapsed))_Upper"])
         ws.append(df_results.columns.to_list())
 
         # Real Data
-        path_nis = os.path.join(os.getcwd(),
-                                "grid_run_data/MG(n)Infinity - Lambda1Mu{}P(Interv)0.0MuPrime2.5/data_NIS.csv".format(mu))
+        # path_nis = os.path.join(os.getcwd(),
+        #                         "grid_run_data/MG(n)Infinity - Lambda1Mu{}P(Interv)0.0MuPrime2.5/data_NIS.csv".format(mu))
         path_tis = os.path.join(os.getcwd(),
                                 "grid_run_data/MG(n)Infinity - Lambda1Mu{}P(Interv)0.0MuPrime2.5/data_TIS.csv".format(mu))
         print("\"Real Data\": method0...")
         mean_Q, mean_Q_stdev, mean_elapsed, mean_elapsed_stdev = true_mean_stdev(
             filepath=path_tis)  # mean_Q, stdev_Q, mean_elapsed, stdev_elapsed
-        df_results.loc[0] = "Real Data", mean_Q, mean_Q_stdev, np.nan, mean_elapsed, mean_elapsed_stdev, np.nan
+        df_results.loc[0] = "Real Data", mean_Q, np.nan, np.nan, np.nan, np.nan, mean_Q_stdev, np.nan, np.nan, np.nan, np.nan, mean_elapsed, np.nan, np.nan, np.nan, np.nan, mean_elapsed_stdev, np.nan, np.nan, np.nan, np.nan
         plot_percent_to_mean_real_data(data_path=path_tis, plot_name="Real Data - {} Customers".format(nCustomers),
                                        save_path=os.path.join(os.getcwd(), 'grid_run_data/Real Data_Mu={}.png'.format(mu)))
 
@@ -531,11 +542,11 @@ def grid_runs(mu_list, clusters_list, nCustomers=5000, nRuns=30):
                                       mus_speedup=[2.5],
                                       servers=1)
         q_1.simulate_MGnInfinity(customers=nCustomers, runs=nRuns, given_data_path=path_tis, method=1)
-        mean_Q_method1, mean_Q_stdev_method1, _, mean_elapsed_method1, mean_elapsed_stdev_method1, _ = compute_performance_measure(
+        meanQ, var_meanQ, stdev_meanQ, ci_meanQ, stdevQ, var_stdevQ, stdev_stdevQ, ci_stdevQ, meanElapsed, var_meanElapsed, stdev_meanElapsed, ci_meanElapsed, stdevElapsed, var_stdevElapsed, stdev_stdevElapsed, ci_stdevElapsed = compute_performance_measure(
             queueing_system=q_1, confidence_level=0.95, nReplications=nRuns)
         # df_results.loc[1] = mean_Q_method1, mean_Q_stdev_method1, mean_Q_CI_method1, mean_elapsed_method1, mean_elapsed_stdev_method1, mean_elapsed_CI_method1
-        df_results.loc[1] = "Fit 1", mean_Q_method1, mean_Q_stdev_method1, np.nan, mean_elapsed_method1, mean_elapsed_stdev_method1, np.nan
-        plot_percent_to_mean_simulated_data(qs=q_1, true_mean_nis=mean_Q_method1, true_mean_tis=mean_elapsed_method1,
+        df_results.loc[1] = "Fit 1", meanQ, var_meanQ, stdev_meanQ, ci_meanQ[0], ci_meanQ[1], stdevQ, var_stdevQ, stdev_stdevQ, ci_stdevQ[0], ci_stdevQ[1], meanElapsed, var_meanElapsed, stdev_meanElapsed, ci_meanElapsed[0], ci_meanElapsed[1], stdevElapsed, var_stdevElapsed, stdev_stdevElapsed, ci_stdevElapsed[0], ci_stdevElapsed[1]
+        plot_percent_to_mean_simulated_data(qs=q_1, true_mean_nis=meanQ, true_mean_tis=meanElapsed,
                                             plot_name="Fit 1: Linear Regression - {} Customers".format(nCustomers),
                                             save_path=os.path.join(os.getcwd(), 'grid_run_data/Fit1_Mu={}.png'.format(mu)))
 
@@ -545,11 +556,11 @@ def grid_runs(mu_list, clusters_list, nCustomers=5000, nRuns=30):
                                       mus_speedup=[2.5],
                                       servers=1)
         q_2.simulate_MGnInfinity(customers=nCustomers, runs=nRuns, given_data_path=path_tis, method=2)
-        mean_Q_method2, mean_Q_stdev_method2, _, mean_elapsed_method2, mean_elapsed_stdev_method2, _ = compute_performance_measure(
+        meanQ, var_meanQ, stdev_meanQ, ci_meanQ, stdevQ, var_stdevQ, stdev_stdevQ, ci_stdevQ, meanElapsed, var_meanElapsed, stdev_meanElapsed, ci_meanElapsed, stdevElapsed, var_stdevElapsed, stdev_stdevElapsed, ci_stdevElapsed = compute_performance_measure(
             queueing_system=q_2, confidence_level=0.95, nReplications=nRuns)
         # df_results.loc[2] = mean_Q_method2, mean_Q_stdev_method2, mean_Q_CI_method2, mean_elapsed_method2, mean_elapsed_stdev_method2, mean_elapsed_CI_method2
-        df_results.loc[2] = "Fit 2", mean_Q_method2, mean_Q_stdev_method2, np.nan, mean_elapsed_method2, mean_elapsed_stdev_method2, np.nan
-        plot_percent_to_mean_simulated_data(qs=q_2, true_mean_nis=mean_Q_method2, true_mean_tis=mean_elapsed_method2,
+        df_results.loc[2] = "Fit 2", meanQ, var_meanQ, stdev_meanQ, ci_meanQ[0], ci_meanQ[1], stdevQ, var_stdevQ, stdev_stdevQ, ci_stdevQ[0], ci_stdevQ[1], meanElapsed, var_meanElapsed, stdev_meanElapsed, ci_meanElapsed[0], ci_meanElapsed[1], stdevElapsed, var_stdevElapsed, stdev_stdevElapsed, ci_stdevElapsed[0], ci_stdevElapsed[1]
+        plot_percent_to_mean_simulated_data(qs=q_2, true_mean_nis=meanQ, true_mean_tis=meanElapsed,
                                             plot_name="Fit 2: fit 1 kde for all q's - {} Customers".format(nCustomers),
                                             save_path=os.path.join(os.getcwd(), 'grid_run_data/Fit2_Mu={}.png'.format(mu)))
 
@@ -568,11 +579,11 @@ def grid_runs(mu_list, clusters_list, nCustomers=5000, nRuns=30):
                                           mus_speedup=[2.5], servers=1)
             q_3.simulate_MGnInfinity(customers=nCustomers, runs=nRuns, given_data_path=path_tis, method=3,
                                      n_clusters=n_clusters)
-            mean_Q_method3, mean_Q_stdev_method3, _, mean_elapsed_method3, mean_elapsed_stdev_method3, _ = compute_performance_measure(
+            meanQ, var_meanQ, stdev_meanQ, ci_meanQ, stdevQ, var_stdevQ, stdev_stdevQ, ci_stdevQ, meanElapsed, var_meanElapsed, stdev_meanElapsed, ci_meanElapsed, stdevElapsed, var_stdevElapsed, stdev_stdevElapsed, ci_stdevElapsed = compute_performance_measure(
                 queueing_system=q_3, confidence_level=0.95, nReplications=nRuns)
             # df_results.loc[3] = mean_Q_method3, mean_Q_stdev_method3, mean_Q_CI_method3, mean_elapsed_method3, mean_elapsed_stdev_method3, mean_elapsed_CI_method3
-            df_results.loc[cluster_loc] = "Fit 3 ({} Clusters)".format(n_clusters), mean_Q_method3, mean_Q_stdev_method3, np.nan, mean_elapsed_method3, mean_elapsed_stdev_method3, np.nan
-            plot_percent_to_mean_simulated_data(qs=q_3, true_mean_nis=mean_Q_method3, true_mean_tis=mean_elapsed_method3,
+            df_results.loc[cluster_loc] = "Fit 3 ({} Clusters)".format(n_clusters), meanQ, var_meanQ, stdev_meanQ, ci_meanQ[0], ci_meanQ[1], stdevQ, var_stdevQ, stdev_stdevQ, ci_stdevQ[0], ci_stdevQ[1], meanElapsed, var_meanElapsed, stdev_meanElapsed, ci_meanElapsed[0], ci_meanElapsed[1], stdevElapsed, var_stdevElapsed, stdev_stdevElapsed, ci_stdevElapsed[0], ci_stdevElapsed[1]
+            plot_percent_to_mean_simulated_data(qs=q_3, true_mean_nis=meanQ, true_mean_tis=meanElapsed,
                                                 plot_name="Fit 3: ({} Clusters) - {} Customers".format(n_clusters, nCustomers),
                                                 save_path=os.path.join(os.getcwd(),'grid_run_data/Fit3_Mu={}_{}Clusters.png'.format(mu, n_clusters)))
             cluster_loc += 1
@@ -587,3 +598,4 @@ def grid_runs(mu_list, clusters_list, nCustomers=5000, nRuns=30):
 
 if __name__ == "__main__":
     grid_runs(mu_list=[1.1, 1.5, 2.0, 2.5], clusters_list=[5, 10], nCustomers=5000, nRuns=30)
+    # grid_runs(mu_list=[1.5], clusters_list=[5, 10], nCustomers=5000, nRuns=30)
