@@ -10,6 +10,8 @@ def criterion(out, label):
     return (label - out)**2
 
 
+
+
 class relu_Perceptron(torch.nn.Module):
     def __init__(self, in_layers, out_layers):
         super(relu_Perceptron, self).__init__()
@@ -19,6 +21,11 @@ class relu_Perceptron(torch.nn.Module):
     def forward(self, x):
         x = F.relu(self.fc(x))
         return x
+
+
+
+
+
 
    # def predict(self, x_test):
 

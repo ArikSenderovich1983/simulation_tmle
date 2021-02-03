@@ -1,6 +1,10 @@
 from resource import *
 import heapq as hq
 import numpy as np
+import pandas as pd
+
+import os
+
 
 class multi_class_single_station_priority:
     # defining the queueing system using given parameters
@@ -206,14 +210,99 @@ class multi_class_single_station_priority:
 
         print('Done simulating...')
 
+    def generate_data(self, **kwargs):
+        # generating data for intervention experiments
+        mu_2 = kwargs.get('mu_2', 2.2)
+        p_speed = kwargs.get('p_speed', 0.5)
+        lam_ = kwargs.get('lam_', 1)
+        write_file = kwargs.get('write_file', True)
+
+
+        offset = 0.0  # time at the end of last run
+        self.avg_sla_value = 0
+
+        # iterate through each event log (simulation run) in simulation data
+        for j,e_l in enumerate(self.data):
+            # print("Run #"+str(j+1))
+
+            # creating a data-frame to manage the event logs
+            # one per simulation run - we will later want to compare interventions
+            df = pd.DataFrame(e_l, columns=['timestamp', 'event_type', 'id', 'A', 'C'])
+            # two things: we both want plots to see if the simulator makes sense, and create synthetic data
+            # print(df.head(5))
+            # order by id and timestamp there may be tie between a and q - we don't care
+            df.sort_values(by=['id','timestamp'], inplace=True)
+            df.reset_index(drop=True,inplace=True)
+
+
+            # add additional columns to the DataFrame
+            df['elapsed'] = 0.0  # time elapsed since customer's arrival
+            df['arrival_time'] = 0.0
+            df['id_run'] = ""
+            df['S'] = 0.0
+            cur_id = df.at[0,'id']
+            cur_start = df.at[0,'timestamp']
+            # df['FriendsID'] = " "
+            # df['nFriends'] = 0
+            # temp_friends = self.friends[j]
+
+            # go through each event in the DataFrame
+            for i in range(len(df)):
+                df.at[i,'id_run'] = str(df.at[i,'id'])+"_"+str(j)
+
+                # if the event corresponds to the current customer
+                if cur_id == df.at[i,'id']:
+                    df.at[i, 'arrival_time'] = cur_start + offset
+                    df.at[i,'elapsed'] = df.at[i,'timestamp'] - cur_start
+                    # departure event:
+                    if df.at[i,'event_type']=='d':
+                        df.at[i, 'S'] = df.at[i,'timestamp']-df.at[i-1,'timestamp']
+                    #print(df.at[i,'event_type'])
+                    #input("Press Enter to continue...")
+
+                # if the event does not correspond to the current customer, events for the next customer starts
+                else:
+
+                    cur_id = df.at[i, 'id']  # set current customer to the customer for the event
+                    cur_start = df.at[i,'timestamp'].copy()  # advance the current start time to the time of event
+                    df.at[i,'arrival_time'] = cur_start + offset
+                # df.at[i,'FriendsID'] = " ".join(map(str, temp_friends[df.at[i,'id']]))
+                # df.at[i,'nFriends'] = len(temp_friends[df.at[i, 'id']])
+
+
+            # print("Sla level:")
+            # print(sum(df[df.event_type == 'd']['SLA']) / len(df[df.event_type == 'd']))
+
+            # generate csv files
+            if write_file:
+
+
+
+                # "intervention_data.csv" generator
+                if j == 0:
+                    # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', index=False, header=True)
+                    # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp', 'event_type','C', 'A', 'FriendsID','nFriends','elapsed', 'SLA']].to_csv('intervention_data.csv', index=False, header=True)
+                    df[df.event_type == 'd'].loc[:,
+                    ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'S', 'elapsed', 'SLA']].to_csv(
+                        'datafiles\\intervention_data_'+str(lam_)+'_'+str(mu_2)+'_'+str(p_speed)+'.csv', index=False, header=True)
+
+                else:
+                    # df[df.event_type=='d'].loc[:,['id_run', 'arrival_time', 'event_type','C', 'A', 'elapsed']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
+                    # df[df.event_type == 'd'].loc[:,['id_run', 'arrival_time', 'timestamp','event_type','C', 'A', 'FriendsID','nFriends', 'elapsed','SLA']].to_csv('intervention_data.csv', mode='a', index= False, header=False)
+                    df[df.event_type == 'd'].loc[:,
+                    ['id_run', 'arrival_time', 'timestamp', 'event_type', 'C', 'A', 'S', 'elapsed', 'SLA']].to_csv(
+                        'datafiles\\intervention_data_'+str(lam_)+'_'+str(mu_2)+'_'+str(p_speed)+'.csv', mode='a', index=False, header=False)
+
+
 
 if __name__ == "__main__":
-    q_priority_1 = multi_class_single_station_priority(lambda_=1, classes=[0], probs=[1.0], mus=[1.1],
-                                                       prob_speedup=[0.5], mus_speedup=[11], servers=1,
+    q_priority_1 = multi_class_single_station_priority(lambda_=1, classes=[0], probs=[1.0], mus=[],
+                                                       prob_speedup=[0.5], mus_speedup=[0.], servers=10,
                                                        priority=[0])
     q_priority_1.simulate_priority_q(customers=100, runs=3)
+    q_priority_1.generate_data(write_file= True, lam_ = 1, mu_2 = 2, p_speed=0.5)
 
-    q_priority_2 = multi_class_single_station_priority(lambda_=1, classes=[0, 1], probs=[0.5, 0.5], mus = [0.5,2],
-                                                       prob_speedup=[0.0,0.0], mus_speedup=[5,2], servers = 2,
-                                                       priority=[0, 1])
-    q_priority_2.simulate_priority_q(customers=100, runs=3)
+    #q_priority_2 = multi_class_single_station_priority(lambda_=1, classes=[0, 1], probs=[0.5, 0.5], mus = [0.5,2],
+    #                                                   prob_speedup=[0.0,0.0], mus_speedup=[5,2], servers = 2,
+    #                                                   priority=[0, 1])
+    #q_priority_2.simulate_priority_q(customers=100, runs=3)
