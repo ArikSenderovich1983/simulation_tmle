@@ -12,6 +12,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.model_selection import cross_validate
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 import heapq as hq
+import time
 from sklearn.metrics import precision_score, recall_score, confusion_matrix, roc_auc_score, roc_curve, precision_recall_curve
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -139,22 +140,18 @@ def get_errors(x_train, y_train, y_preds, condition):
     return errors
 
 
-def simulate(nruns, cutdown, arrival_times, consult_model, consult_x_test, los_x_test, los_x_train, los_y_train):
+def simulate(nruns, cutdown, initial_event_calendar, consult_model, consult_x_test, model_los_RF, los_x_test, los_errors_t1, los_errors_t23, los_errors_t45):
     print('sampling LOS errors...')
-    los_errors_t1, los_errors_t23, los_errors_t45 = sample_from_RF_regressor_helper(model_los_RF, los_x_train, los_y_train)
     np.random.seed(3)  # set random seed
     los_tr_nruns = []
+    n_T1, n_T23, n_T45 = 0, 0, 0
+    n_consult_T1, n_consult_T23, n_consult_T45 = 0, 0, 0
 
     for r in range(nruns):
         print('running simulation run #: ' + str(r + 1))
-        if r == 0:
-            n_T1, n_T23, n_T45 = 0, 0, 0
+        event_calendar = initial_event_calendar.copy()
 
         los_tr = [[] for _ in range(3)]  # [[triage1], [triage23], [triage45]]
-
-        # print(arrival_times)
-        event_calendar = [(a, 'a', i) for i, a in enumerate(arrival_times[0:5000])]  # reduced to test out
-        hq.heapify(event_calendar)
 
         curr_nis = 0
         # departure_times = []
@@ -177,19 +174,27 @@ def simulate(nruns, cutdown, arrival_times, consult_model, consult_x_test, los_x
 
                 if (sample['Triage Category_Less Urgent & Non-Urgent'] == 0) & (sample['Triage Category_Resuscitation'] == 1):
                     los = sample_from_RF_regressor(model_los_RF, sample, los_errors_t1)
+                    if sample['consult_Yes'] == 1:
+                        los = los * cutdown
+                        if r == 0: n_consult_T1 += 1
                     triage_idx = 0
                     if r == 0: n_T1 += 1
-                if (sample['Triage Category_Less Urgent & Non-Urgent'] == 0) & (sample['Triage Category_Resuscitation'] == 0):
+
+                elif (sample['Triage Category_Less Urgent & Non-Urgent'] == 0) & (sample['Triage Category_Resuscitation'] == 0):
                     los = sample_from_RF_regressor(model_los_RF, sample, los_errors_t23)
+                    if sample['consult_Yes'] == 1:
+                        los = los * cutdown
+                        if r == 0: n_consult_T23 += 1
                     triage_idx = 1
                     if r == 0: n_T23 += 1
-                if (sample['Triage Category_Less Urgent & Non-Urgent'] == 1) & (sample['Triage Category_Resuscitation'] == 0):
+
+                elif (sample['Triage Category_Less Urgent & Non-Urgent'] == 1) & (sample['Triage Category_Resuscitation'] == 0):
                     los = sample_from_RF_regressor(model_los_RF, sample, los_errors_t45)
+                    if sample['consult_Yes'] == 1:
+                        los = los * cutdown
+                        if r == 0: n_consult_T45 += 1
                     triage_idx = 2
                     if r == 0: n_T45 += 1
-
-                if sample['consult_Yes'] == 1:
-                    los = los * cutdown
 
                 los_tr[triage_idx].append(los[0])
 
@@ -203,9 +208,12 @@ def simulate(nruns, cutdown, arrival_times, consult_model, consult_x_test, los_x
                 curr_nis -= 1  # update current number of customers in the system
 
         los_tr_nruns.append(los_tr)
-        if r == 0: nPatients = [n_T1, n_T23, n_T45]
 
-    return los_tr_nruns, nPatients
+    nPatients = [n_T1, n_T23, n_T45]
+    nConsultPatients = [n_consult_T1, n_consult_T23, n_consult_T45]
+    percentConsult = [round((n_consult_T1/n_T1)*100, 1), round((n_consult_T23/n_T23)*100, 1), round((n_consult_T45/n_T45)*100, 1)]
+
+    return los_tr_nruns, nPatients, nConsultPatients, percentConsult
 
 
 def total_performance_measures(los_tr_nruns):
@@ -258,18 +266,34 @@ if __name__ == "__main__":
     nRuns = 10
     cutdown_percentage = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     # cutdown_percentage = [0.5, 0.8, 1.0]
+    # cutdown_percentage = [0.5]
     df_results = pd.DataFrame(
-        columns=['nPatients [T1, T23, T45]', 'nRuns', 'Cut Down by (%)', 'Mean [T1, T23, T45]', 'Median [T1, T23, T45]',
-                 'Stdev [T1, T23, T45]', '90th Percentile [T1, T23, T45]'])
+        columns=['nPatients [T1, T23, T45]', 'nConsultPatients [T1, T23, T45]', 'percentConsult [T1, T23, T45]',
+                 'nRuns', 'Cut Down by (%)', 'Mean [T1, T23, T45]', 'Median [T1, T23, T45]',
+                 'Stdev [T1, T23, T45]', '90th Percentile [T1, T23, T45]', 'Time to Run (mins)'])
     df_los_data = pd.DataFrame(columns=['Cut Down by (%)', 'LOS Data'])
+
+    los_errors_t1, los_errors_t23, los_errors_t45 = sample_from_RF_regressor_helper(model_los_RF, los_x_train, los_y_train)
+
+    initial_event_calendar = [(a, 'a', i) for i, a in enumerate(arrivals[0:8000])]  # reduced to test out
+    hq.heapify(initial_event_calendar)
+
     for i, cutdown in enumerate(cutdown_percentage):
         print("Consult Patients shorten by {} Percent".format((1-cutdown)*100))
-        los_tr_nruns, nPatients = simulate(nRuns, cutdown, arrivals, model_consult_RF, x_test, los_x_test, los_x_train, los_y_train)
+        start = time.time()
+        los_tr_nruns, nPatients, nConsultPatients, percentConsult = simulate(nRuns, cutdown, initial_event_calendar,
+                                                                             model_consult_RF, x_test, model_los_RF,
+                                                                             los_x_test,
+                                                                             los_errors_t1, los_errors_t23,
+                                                                             los_errors_t45)
         # print(los_tr_nruns)
         mean, median, stdev, P90 = total_performance_measures(los_tr_nruns)
         # print(mean, median, stdev, P90)
+        end = time.time()
+        time_to_run = round((end - start)/60, 3)
+        print(time_to_run)
         df_los_data.loc[i] = (1-cutdown)*100, los_tr_nruns
-        df_results.loc[i] = nPatients, nRuns, (1-cutdown)*100, mean, median, stdev, P90
+        df_results.loc[i] = nPatients, nConsultPatients, percentConsult, nRuns, (1-cutdown)*100, mean, median, stdev, P90, time_to_run
 
     save_path_los_data = os.path.join(os.getcwd(), "Consult_Reduction_LOS_Data.csv")
     df_los_data.to_csv(save_path_los_data, index=False, header=True)
