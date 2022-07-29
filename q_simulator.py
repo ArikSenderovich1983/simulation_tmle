@@ -67,7 +67,7 @@ class multi_class_single_station_fcfs:
                 classes_.append(c_)
 
                 service_times.append(
-                    Distribution(dist_type=DistributionType.exponential, rate=self.mus_speedup[c_]).sample())
+                    Distribution(dist_type=DistributionType.exponential, rate=self.mus[c_]).sample())
 
             # system_type (default 1) --> system_type 1 = M/G/1; system_type 2 = G/G/1 (appointment)
             if system_type == 2:
