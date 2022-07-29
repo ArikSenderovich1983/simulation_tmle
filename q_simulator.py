@@ -50,7 +50,6 @@ class multi_class_single_station_fcfs:
             sim_arrival_times = []
             service_times = []
             classes_ = []
-            interv_ = []
 
             for c in range(customers):
                 #if c%1000==0:
@@ -171,7 +170,7 @@ if __name__ == "__main__":
 
 
     customers_ = 100000
-    runs_ = 1
+    runs_ = 10
     q = multi_class_single_station_fcfs(lambda_=0.9, classes=[0], probs=[1],
                                           mus=[1], prob_speedup=[0],
                                           mus_speedup=[2],
