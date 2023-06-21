@@ -330,7 +330,7 @@ if __name__ == "__main__":
     #3. Daphne: one-hot encode "class"
     #3.1 Daphne: fix data type for timestamps
     #4. Run NYGH data through this pipeline
-    #5. EBM - feature importance 
+    #5. EBM - feature importance
     static_context = []# ['x1', 'x2']
     features = ["arr_nis","class", "last_remaining_los"]
     for s in static_context:
@@ -354,6 +354,7 @@ if __name__ == "__main__":
         #sampled_arrivals = sampled_arrivals.drop(0)
         #sampled_arrivals = sampled_arrivals.values[0:n]
         sampled_arrivals, sampled_context = sample_arrivals(df, static_context,  n)
+        
         #simulate the qnet
         generated_log = simulate_system(generator, residuals, log_scale,
                                         sampled_arrivals, sampled_context,  kmeans, gamma_params, generator_flag, all_classes)
