@@ -330,6 +330,7 @@ if __name__ == "__main__":
     #3. Daphne: one-hot encode "class"
     #3.1 Daphne: fix data type for timestamps
     #4. Run NYGH data through this pipeline
+    #5. EBM - feature importance 
     static_context = []# ['x1', 'x2']
     features = ["arr_nis","class", "last_remaining_los"]
     for s in static_context:
