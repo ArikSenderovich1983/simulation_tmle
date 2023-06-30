@@ -9,6 +9,10 @@ from sklearn.cluster import KMeans
 from scipy.stats import gamma
 from scipy.special import kl_div
 from scipy.stats import entropy
+from pre_processing import *
+import warnings
+warnings.filterwarnings("ignore")
+
 #suppl. functions
 def sample_with_replacement(residuals, num_samples):
     # Get the number of residuals
@@ -108,8 +112,6 @@ def learn_generator(X, y , log_scale=True, model_based_sampling=True, allow_neg=
                 ebm.fit(X, y)
                 residuals = np.array(y - ebm.predict(X))
         return ebm, residuals
-
-
 def sample_arrivals(df, static_context, n):
     # we will bootstrap arrivals
     class_counts = df['class'].value_counts()
@@ -167,7 +169,6 @@ def compare_cluster_distributions(X, y, k):
 
     if num_pairs > 0:
         similarity_score /= num_pairs
-
     return similarity_score
 def find_best_k(X, y, k_range):
     best_score = -1
@@ -186,7 +187,17 @@ def find_best_k(X, y, k_range):
             count+=1
     print('Best k is ', best_k)
     return best_k
-
+def get_arrivals(df):
+    sampled_arrivals = {}
+    for c in df['class'].unique():
+        df_arrivals = df[df['class']==c]['arrival'].copy(deep=True)
+        df_arrivals.sort_values(inplace=True)
+        df_arrivals.reset_index(inplace=True, drop=True)
+        time_between_arrivals = df_arrivals.diff()
+        time_between_arrivals = time_between_arrivals.drop(0)
+        sampled_arrivals[c] = time_between_arrivals
+        print()
+    return sampled_arrivals
 
 def fit_gamma(df, X, y_label,K):
     kmeans = KMeans(n_clusters=K)  # Adjust the number of clusters as per your requirement
@@ -212,10 +223,13 @@ def write_event(nis, generator, residuals, departure_calendar,
     #write the event down
     generated_log['arrival'].append(arr_timestamp)
     last_los = max(0,prev_sojourn - (arr_timestamp-prev_arrival))
-    pred_features = [nis,  last_los] #new_-------class
+    # print("context:", context)
+    # pred_features = [nis, new_class, last_los]
+    pred_features = []
     pred_features.extend(context)
-    for c in all_classes:
-        pred_features.append(nis_vec[c])
+    # for c in all_classes:
+    #     pred_features.append(nis_vec[c])
+    # print("pred_features:", len(pred_features))
     if generator_flag:
         gen_duration = [0]
         while gen_duration[0]<=0:
@@ -254,7 +268,6 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
     count_ties = 0
     count_for_context = 0
     for k,v in sampled_arrivals.items():
-
         for s in v:
             cur_ts += s
             while cur_ts in all_ts_ties:
@@ -265,7 +278,7 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
             all_ts_ties.append(cur_ts)
             count_for_context += 1
         cur_ts = 0
-
+    
     print('Ties:', count_ties)
     nis = 0
     nis_vec = []
@@ -325,47 +338,74 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
 
 if __name__ == "__main__":
     #initialize the experiment:
-    n = 10000
-    df = pd.read_csv('horizontal_multi_many.csv')
+    n = 1000
+    # df = pd.read_csv('horizontal_multi_many.csv')
+    pre_processed = True
+    if pre_processed:
+        df = pd.read_pickle("10500_original_cleaned.pkl")
+    else:
+        df = main_process("10500_original.csv")
+    
+    print("dataframe loaded")
     #todo:
     #1. Arik to check log scale issue.
     #2. Daphne: use data arrivals for now
-    #3. Daphne: one-hot encode "class" and static context that is categorical
-    #3.1 Daphne: fix data type for timestamps
-    #3.2 Daphne: Create enum for multiple ML models (ANN, EBM, RF, KNN,...)
+    #3. Daphne: one-hot encode "class"
     #4. Run NYGH data through this pipeline
     #5. EBM - feature importance
-    static_context = []#['x1', 'x2']
-    features = ["arr_nis", "last_remaining_los"] #class to be dummified
+    static_context = ['Triage Code', 'Age Category', 'Initial Zone', 'Gender Code', 'Ambulance', 'Consult', 'Admission']# ['x1', 'x2']
+    '''
+    dummie_context = []
+    for con in static_context:
+        for item in df[con].unique():
+            dummie_context.append(con+"_" + str(item))
+    print("dummie_context:", dummie_context)
+    '''
+    # static_context = []
+    features = ["arr_nis", "class", "last_remaining_los"]
     for s in static_context:
         features.append(s)
     all_classes = df['class'].unique()
     for c in all_classes:
         features.append('arr_nis_class_'+str(c))
     X = df[features]
+    X = pd.get_dummies(data=X, drop_first=True)
+    # df = pd.get_dummies(data=df, drop_first=True)
+    X = pd.get_dummies(data=X, columns = ['class', 'Triage Code'], drop_first = True)
+    # print(X)
+    # print("X:", X.columns)
+    # X = pd.get_dummies(data=X, columns = ['class'])
+    print(X.columns)
     y = df['sojourn']
     log_scale = False
     generator_flag=False
     generator, residuals = learn_generator(X, y,
                                            log_scale=log_scale,
                                            model_based_sampling=True, allow_neg=True)
-
     K_max = 20
     k_best = find_best_k(X, y, range(2,K_max))
     kmeans, gamma_params = fit_gamma(df, X, y_label='sojourn', K=k_best)
     # bootstrap n new arrivals (new horizon)
     runs = 3
     for r in range(runs):
-        #sampled_arrivals = df['arrival'].diff().copy()#copy()#sample_arrivals(df, n)
-        #sampled_arrivals = sampled_arrivals.drop(0)
-        #sampled_arrivals = sampled_arrivals.values[0:n]
+        # sampled_arrivals, sampled_context = sample_arrivals(df, static_context,  n)
+        
+        # sampled_arrivals = df['arrival'].diff().copy()#copy()#sample_arrivals(df, n)
+        # sampled_arrivals = sampled_arrivals.drop(0)
+        # sampled_arrivals = sampled_arrivals.values[0:n]
+        
+        sampled_arrivals = get_arrivals(df)
+        sampled_context = X
+        # print("sampled arrivals keys:", sampled_arrivals.keys())
+        # print("sampled_context:", sampled_context)
 
-        sampled_arrivals, sampled_context = sample_arrivals(df, static_context,  n)
+        # print(sampled_arrivals)
+        
+        
         #simulate the qnet
         generated_log = simulate_system(generator, residuals, log_scale,
-                                        sampled_arrivals, sampled_context,
-                                        kmeans, gamma_params, generator_flag,
-                                        all_classes)
+                                        sampled_arrivals, sampled_context,  kmeans, gamma_params, generator_flag, all_classes)
+        
         #compute and plot stats
         compute_stats(generated_log, df)
         #write results
