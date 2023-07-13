@@ -212,7 +212,7 @@ def write_event(nis, generator, residuals, departure_calendar,
     #write the event down
     generated_log['arrival'].append(arr_timestamp)
     last_los = max(0,prev_sojourn - (arr_timestamp-prev_arrival))
-    pred_features = [nis, new_class, last_los]
+    pred_features = [nis,  last_los] #new_-------class
     pred_features.extend(context)
     for c in all_classes:
         pred_features.append(nis_vec[c])
@@ -273,7 +273,7 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
     for c in all_classes:
         nis_vec.append(0)
         generated_log['arr_nis_class_'+str(c)] = []
-    arrival_count = 0
+    arrival_count = 1
 
     #first arrival
     arr_timestamp, new_class, context = heapq.heappop(arrival_calendar)
@@ -295,7 +295,8 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
             arr_timestamp, new_class = heapq.heappop(arrival_calendar)
             prev_sojourn, prev_arrival, arrival_count, nis, nis_vec = \
                 write_event(nis, generator, residuals, departure_calendar,
-                            log_scale, generated_log, arrival_count, kmeans, gamma_parms, generator_flag, nis_vec,
+                            log_scale, generated_log, arrival_count, kmeans,
+                            gamma_parms, generator_flag, nis_vec,
                             arr_timestamp, new_class, prev_arrival, prev_sojourn, context)
 
         elif arrival_calendar[0] <= departure_calendar[0]:
@@ -303,7 +304,9 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
                 arr_timestamp, new_class, context = heapq.heappop(arrival_calendar)
                 prev_sojourn, prev_arrival, arrival_count, nis, nis_vec =\
                     write_event(nis,  generator, residuals, departure_calendar,
-                                log_scale, generated_log, arrival_count, kmeans, gamma_parms, generator_flag, nis_vec, arr_timestamp, new_class, prev_arrival, prev_sojourn, context)
+                                log_scale, generated_log, arrival_count, kmeans, gamma_parms,
+                                generator_flag, nis_vec, arr_timestamp, new_class, prev_arrival,
+                                prev_sojourn, context)
 
         else:
             _, new_class, _ = heapq.heappop(departure_calendar)
@@ -322,17 +325,18 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
 
 if __name__ == "__main__":
     #initialize the experiment:
-    n = 1000
+    n = 10000
     df = pd.read_csv('horizontal_multi_many.csv')
     #todo:
     #1. Arik to check log scale issue.
     #2. Daphne: use data arrivals for now
-    #3. Daphne: one-hot encode "class"
+    #3. Daphne: one-hot encode "class" and static context that is categorical
     #3.1 Daphne: fix data type for timestamps
+    #3.2 Daphne: Create enum for multiple ML models (ANN, EBM, RF, KNN,...)
     #4. Run NYGH data through this pipeline
     #5. EBM - feature importance
-    static_context = []# ['x1', 'x2']
-    features = ["arr_nis","class", "last_remaining_los"]
+    static_context = []#['x1', 'x2']
+    features = ["arr_nis", "last_remaining_los"] #class to be dummified
     for s in static_context:
         features.append(s)
     all_classes = df['class'].unique()
@@ -341,9 +345,11 @@ if __name__ == "__main__":
     X = df[features]
     y = df['sojourn']
     log_scale = False
-    generator_flag=True
-    generator, residuals = learn_generator(X, y, log_scale=log_scale,
+    generator_flag=False
+    generator, residuals = learn_generator(X, y,
+                                           log_scale=log_scale,
                                            model_based_sampling=True, allow_neg=True)
+
     K_max = 20
     k_best = find_best_k(X, y, range(2,K_max))
     kmeans, gamma_params = fit_gamma(df, X, y_label='sojourn', K=k_best)
@@ -353,13 +359,15 @@ if __name__ == "__main__":
         #sampled_arrivals = df['arrival'].diff().copy()#copy()#sample_arrivals(df, n)
         #sampled_arrivals = sampled_arrivals.drop(0)
         #sampled_arrivals = sampled_arrivals.values[0:n]
+
         sampled_arrivals, sampled_context = sample_arrivals(df, static_context,  n)
-        
         #simulate the qnet
         generated_log = simulate_system(generator, residuals, log_scale,
-                                        sampled_arrivals, sampled_context,  kmeans, gamma_params, generator_flag, all_classes)
+                                        sampled_arrivals, sampled_context,
+                                        kmeans, gamma_params, generator_flag,
+                                        all_classes)
         #compute and plot stats
         compute_stats(generated_log, df)
-    #write results
+        #write results
         pd.DataFrame.from_dict(generated_log).to_csv('results_'+str(r)+'.csv')
 
