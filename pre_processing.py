@@ -71,13 +71,6 @@ def clean_data(df):
     df['arrival'] = df.apply( lambda row: (row['arrival_datetime'] - first_arrival).total_seconds() // 60, axis = 1)
     df['departure'] = df.apply( lambda row: (row['departure_datetime'] - first_arrival).total_seconds() // 60, axis = 1)
     
-    df['arrival_shifted'] = df.arrival.shift(-1)
-    df['last_remaining_los'] = df.apply( lambda row: (row['sojourn'] - row['arrival_shifted'] + row['arrival']), axis = 1)
-    df['last_remaining_los'] = df.last_remaining_los.shift(1)
-    df.loc[0, 'last_remaining_los'] = 0
-    df.pop('patient_arrival')
-    df.pop('arrival_shifted')
-    
     return df
 
 def create_classes(df):
@@ -96,13 +89,46 @@ def create_classes(df):
     df = df[df['Triage Code'] != 9.0]
     # T123: 'Resuscitation, Emergent & Urgent', T45: 'Less Urgent & Non-Urgent'
     df.loc[(df['Admission'] == 'Admitted') & ((df['Triage Code'] == 1) | (df['Triage Code'] == 2) | (
-            df['Triage Code'] == 3)), 'class'] = 0
+            df['Triage Code'] == 3)), 'class'] = "0"
     df.loc[(df['Admission'] == 'Not Admitted') & ((df['Triage Code'] == 1) | (df['Triage Code'] == 2) | (
-            df['Triage Code'] == 3)), 'class'] = 1
-    df.loc[(df['Triage Code'] == 4) | (df['Triage Code'] == 5), 'class'] = 2
+            df['Triage Code'] == 3)), 'class'] = "1"
+    df.loc[(df['Triage Code'] == 4) | (df['Triage Code'] == 5), 'class'] = "2"
 
     df = df.astype({"class": int})
     
+    return df
+
+def calculate_los_remaining(df):
+    df['arrival_shifted'] = df.arrival.shift(-1)
+    df['last_remaining_los'] = df.apply( lambda row: max(0, (row['sojourn'] - row['arrival_shifted'] + row['arrival'])), axis = 1)
+    df['last_remaining_los'] = df.last_remaining_los.shift(1)
+    
+    df['last_rem_class_0'] = ''
+    df['last_rem_class_1'] = ''
+    df['last_rem_class_2'] = ''
+
+    for ind in df.index:
+        if ind == 0:
+            df['last_rem_class_0'][ind] = 0
+            df['last_rem_class_1'][ind] = 0
+            df['last_rem_class_2'][ind] = 0
+        elif df['class'][ind-1] == 0:
+            df['last_rem_class_0'][ind] = max(0, df['departure'][ind-1]-df['arrival'][ind])
+            df['last_rem_class_1'][ind] = max(0, df['last_rem_class_1'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
+            df['last_rem_class_2'][ind] = max(0, df['last_rem_class_2'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
+        elif df['class'][ind-1] == 1:
+            # print(df['departure'][ind-1], df['arrival'][ind])
+            df['last_rem_class_1'][ind] = max(0, df['departure'][ind-1]-df['arrival'][ind])
+            df['last_rem_class_0'][ind] = max(0, df['last_rem_class_0'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
+            df['last_rem_class_2'][ind] = max(0, df['last_rem_class_2'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
+        elif df['class'][ind-1] == 2:
+            df['last_rem_class_2'][ind] = max(0, df['departure'][ind-1]-df['arrival'][ind])
+            df['last_rem_class_1'][ind] = max(0, df['last_rem_class_1'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
+            df['last_rem_class_0'][ind] = max(0, df['last_rem_class_0'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
+            
+    df.loc[0, 'last_remaining_los'] = 0
+    df.pop('patient_arrival')
+    df.pop('arrival_shifted')
     return df
 
 def compute_nis_features(df):
@@ -190,8 +216,8 @@ def compute_nis_features(df):
     return df
 
 def rearrange_columns(df):
-    df.drop(['Left ED DateTime', 'Triage DateTime', 'Ambulance Arrival DateTime', 'prev_nis_upon_arrival_class_1', 'prev_nis_upon_arrival_class_0', 'prev_nis_upon_arrival_class_2', 'arrival_datetime', 'departure_datetime'], axis=1)
-    df = df[['case', 'class', 'arrival', 'departure', 'arr_nis', 'sojourn', 'cum_arrival', 'arr_nis_class_1', 'arr_nis_class_0', 'arr_nis_class_2', 'last_remaining_los', 'Triage Code', 'Age Category', 'Initial Zone', 'Gender Code', 'Ambulance', 'Consult', 'Admission']]
+    # df.drop(['Left ED DateTime', 'Triage DateTime', 'Ambulance Arrival DateTime', 'prev_nis_upon_arrival_class_1', 'prev_nis_upon_arrival_class_0', 'prev_nis_upon_arrival_class_2', 'arrival_datetime', 'departure_datetime'], axis=1)
+    df = df[['case', 'class', 'arrival', 'departure', 'arr_nis', 'sojourn', 'cum_arrival', 'arr_nis_class_0', 'arr_nis_class_1', 'arr_nis_class_2', 'last_remaining_los', 'last_rem_class_0', 'last_rem_class_1', 'last_rem_class_2', 'Triage Code', 'Age Category', 'Initial Zone', 'Gender Code', 'Ambulance', 'Consult', 'Admission']]
     
     return df
 
@@ -200,6 +226,10 @@ def save_data(df, filename):
     save_path = os.path.join(os.getcwd(), filename[:-4] + "_cleaned.xlsx")
     df.to_excel(save_path, engine='xlsxwriter', index=False)
     df.to_pickle(filename[:-4]+ "_cleaned.pkl")
+
+def change_column_datatypes(df):
+    df = df.astype({"Triage Code":'category', "class":'category', "last_rem_class_0": int, "last_rem_class_1": int, "last_rem_class_2": int})
+    return df
 
 def main_process(filename):
     # filename = "Trial20.csv"
@@ -212,8 +242,10 @@ def main_process(filename):
 
     df = clean_data(df)
     df = create_classes(df)
+    df = calculate_los_remaining(df)
     df = compute_nis_features(df)
     df = rearrange_columns(df)
+    df = change_column_datatypes(df)
     save_data(df, filename)
     return df
 
