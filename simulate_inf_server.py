@@ -14,6 +14,7 @@ import warnings
 import seaborn as sns
 from sklearn.ensemble import RandomForestRegressor
 from timeit import default_timer as timer
+from datetime import timedelta
 warnings.filterwarnings("ignore")
 
 #suppl. functions
@@ -34,7 +35,7 @@ def return_func(exp_flag=False):
         return empty_func
 
 #plotting and stats
-def plot_hist(generated_series, actual_series, x_label, num_bin):
+def plot_hist(generated_series, actual_series, x_label, num_bin, name):
     #plotting a histogram of two series, x axis label, and num bins
     #generated_hist, generated_bins = np.histogram(generated_series, bins=num_bin, density=True)
     #actual_hist, actual_bins = np.histogram(actual_series, bins=num_bin, density=True)
@@ -49,13 +50,17 @@ def plot_hist(generated_series, actual_series, x_label, num_bin):
 
     #plt.hist(generated_series, num_bins  = )
 
-
+    plt_title = 'Histogram of '+ x_label
     plt.legend()
     plt.xlabel(x_label)
     plt.ylabel('Density')
-    plt.title('Histogram of '+x_label)
-    plt.show()
-def plot_ts(gen_x_values,  generated_series, actual_series, x_label):
+    plt.title(plt_title)
+    save_path = os.path.join(os.getcwd(), "{}.png".format(plt_title + "-" + name))
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+
+def plot_ts(gen_x_values,  generated_series, actual_series, x_label, name, spec_name, time_name):
+    fig = None
     fig, ax = plt.subplots()
 
     # Plot the first time series
@@ -64,85 +69,222 @@ def plot_ts(gen_x_values,  generated_series, actual_series, x_label):
     # Plot the second time series
     ax.plot(gen_x_values, actual_series, label='Actual '+x_label)
 
-    # Set labels and title
-    ax.set_xlabel('Time')
-    ax.set_ylabel(x_label)
-    ax.set_title('Comparison of Generated vs. Actual '+x_label)
+    plt.xlabel("Time")
+    plt.ylabel(x_label)
+    plt_title = time_name + ' Comparison of Generated vs. Actual '+ x_label
+    plt.title(plt_title)
 
     # Display the legend
     ax.legend()
 
-    # Show the plot
-    plt.show()
+    filename = time_name + " " + spec_name + ' Time-Series ' + x_label + '-' + name
+    save_path = os.path.join(os.getcwd(), "{}.png".format(filename))
+    plt.savefig(save_path, dpi=300)
+    plt.close(fig)
+
 def ks_test(generated_series, actual_series, x_label):
     statistic, p_value = stats.ks_2samp(generated_series, actual_series)
     # Display the test result
-    print("Statistic: "+x_label, statistic)
-    print("P-value: "+x_label, p_value)
-def compute_stats(generated_log, df):
+    # print("Statistic: "+x_label, statistic)
+    # print("P-value: "+x_label, p_value)
+    return p_value, statistic
 
-    plot_hist(generated_log['s_arr_nis'], df['arr_nis'], x_label="NIS", num_bin=50)
-    plot_hist(generated_log['s_sojourn'], df['sojourn'], x_label="Sojourn", num_bin=50)
+def plot_graphs(class_dfs_per_gen, generator_names, class_names, spec_name, time_name):
+    data_s_sojourn = []
+    data_nis = []
+    sojourn = []
+    for c in range(len(class_names)):
+        for gen in range(len(generator_names)):
+            arr_nis = "arr_nis"
+            s_arr_nis = "s_arr_nis"
+            if c != 0:
+                arr_nis = arr_nis + "_class_" + str(c-1)
+                s_arr_nis = s_arr_nis + "_class_" + str(c-1)
+            df_to_use = class_dfs_per_gen[gen][c]
+            if gen == 0:
+                sojourn = df_to_use["sojourn"]
+                data_nis.append(df_to_use[arr_nis])
+            data_s_sojourn.append(df_to_use['s_sojourn'])
+            data_nis.append(df_to_use[s_arr_nis])
+        qq_plot(sojourn, data_s_sojourn, class_names[c], generator_names, spec_name, time_name)
+        data = [sojourn]
+        data.extend(data_s_sojourn)
+        plot_box_whisker(data, class_names[c], generator_names, "Sojourn", spec_name, time_name)
+        plot_box_whisker(data_nis, class_names[c], generator_names, "NIS", spec_name, time_name)
+        data_s_sojourn = []
+        data_nis = []
 
-    # Define the bin intervals
-    bin_intervals = np.arange(0, max(generated_log['arrival']), 0.0001)
-    # Bin the time series data
-    x_gen_arrivals = np.digitize(generated_log['arrival'], bin_intervals) - 1
+def plot_box_whisker(data_list, class_name, generator_names, name, spec_name, time_name):
+    plt_title = time_name + " " + spec_name + ' Box Plot '+ name + "-" + class_name
+    fig, ax = plt.subplots()
+    fig.suptitle(plt_title)
+    elements = []
+    labels = ["Real " + name]
+    labels.extend(generator_names)
+    colours = ['blue', 'red', 'green', 'orange']
+    for d, data in enumerate(data_list):
+        elements.append(ax.boxplot(data, positions=[ 1 + 3*d], widths = [2], patch_artist=True, boxprops=dict(facecolor=colours[d])))
+   
+    ax.legend([element["boxes"][0] for element in elements], [labels[idx] for idx,_ in enumerate(data_list)], loc='upper right')
 
-    plot_ts(x_gen_arrivals, #df['arrival'].values[0:len(generated_log['arrival'])],
-            generated_log['s_arr_nis'], df['arr_nis'].values[0:len(generated_log['arrival'])], "NIS")
-    plot_ts(x_gen_arrivals, #df['arrival'].values[0:len(generated_log['arrival'])],
-           generated_log['arrival_count'], df['cum_arrival'].values[0:len(generated_log['arrival'])],
-            "Cumulative Arrival")
+    filename = plt_title
+    save_path = os.path.join(os.getcwd(), "{}.png".format(filename))
+    plt.savefig(save_path, dpi=300)
+    plt.close()
 
-    #plot_ts(generated_log['arrival'], df['arrival'].values[0:len(generated_log['arrival'])],  generated_log['nis_arrival'], df['arr_nis'].values[0:len(generated_log['arrival'])], "NIS")
-    #plot_ts(generated_log['arrival'], df['arrival'].values[0:len(generated_log['arrival'])], generated_log['arrival_count'], df['cum_arrival'].values[0:len(generated_log['arrival'])], "Cumulative Arrival")
+def qq_plot(data1, data2, name, generator_names, spec_name, time_name, plot_min=0, plot_max=None):
+    """
+    Plots the Q-Q plots of quantiles of actual and simulated LOS for 1 patient type and saves the plot
 
-    ks_test(generated_log['s_sojourn'], df['sojourn'].values[0:len(generated_log['arrival'])], "Sojourn")
-    ks_test(generated_log['s_arr_nis'], df['arr_nis'].values[0:len(generated_log['arrival'])], "NIS")
+    @ params:
+        data1 (list): quantiles from data on the x-axis --> actual LOS
+        data2 (list): quantiles from data on the y-axis --> simulated LOS
+        plot_min (int, default=None): minimum value for x-axis and y-axis
+        plot_max (int, default=None): maximum value for x-axis and y-axis
+    """
+
+    # Set up the plot parameters
+
+    sns.set_color_codes("colorblind")
+    fig = None
+    fig, _ = plt.subplots(1, 1, figsize=(8, 6), sharex='all', sharey='all', clear=True)  # ((ax1))
+    
+    plot_name = time_name + " " + spec_name + 'Q-Q Plot ' + str(name)
+    fig.suptitle(plot_name)
+
+    for i, ax_n in enumerate(fig.get_axes()):
+        for count in range(len(data2)):    
+            # Computes quantiles and plots them
+            quantiles = min(len(data1), len(data2[count]))
+            quantiles = np.linspace(start=0, stop=1, num=int(quantiles))
+            x_quantiles = np.quantile(data1, quantiles)
+            y_quantiles = np.quantile(data2[count], quantiles)
+            ax_n.scatter(x_quantiles, y_quantiles, label=generator_names[count])
+
+
+        # Finds the max and min values to use for the x-axis and y-axis
+        data1_min, data1_max = min(data1), max(data1)
+        data2_min, data2_max = min(data2[0]), max(data2[0])
+        x_min = np.floor(min(data1_min, data2_min))
+        x_max = np.ceil(max(data1_max, data2_max))
+        x = np.linspace(x_min, x_max, int(x_max - x_min + 1))
+        ax_n.plot(x, x, 'k-')  # Plots a 45-degree line
+
+        ax_n.set_xlabel('Simulated LOS Quantiles')
+        ax_n.set_ylabel('Actual LOS Quantiles')
+
+        # Sets the x-axis limits and y-axis limits
+        if (plot_min is not None) and (plot_max is not None):
+            ax_n.set_xlim(plot_min, plot_max)
+            ax_n.set_ylim(plot_min, plot_max)
+        else:
+            ax_n.set_xlim(x_min, x_max)
+            ax_n.set_ylim(x_min, x_max)
+
+    ax_n.legend()
+    save_path = os.path.join(os.getcwd(), "{}.png".format(plot_name))
+    plt.savefig(save_path, dpi=300)
+    plt.close(fig)
+
+def get_ks_test_vals(dfs, class_types):
+    count_for_names = 0
+    p_sojourn = []
+    stat_sojourn = []
+    p_nis = []
+    stat_nis = []
+    for class_df in dfs:
+        p_soj, stat_soj = ks_test(class_df['s_sojourn'], class_df['sojourn'].values[0:len(class_df['arrival'])], "Sojourn" + "-" + class_types[count_for_names])
+        p_nis_val, stat_nis_val = ks_test(class_df['s_arr_nis'], class_df['arr_nis'].values[0:len(class_df['arrival'])], "NIS" + "-" + class_types[count_for_names])
+        p_sojourn.append(p_soj)
+        stat_sojourn.append(stat_soj)
+        p_nis.append(p_nis_val)
+        stat_nis.append(stat_nis_val)
+        # print(class_types[count_for_names] + "-values: ", p_nis_val, p_soj, stat_nis_val, stat_soj)
+        count_for_names += 1
+
+    return p_nis, p_sojourn, stat_nis, stat_sojourn
+
+def plot_nis_ts(class_dfs_per_gen, generator_names, class_names, spec_name, time_name):
+    
+    for count in range(len(class_names)):
+        fig = None
+        fig, ax = plt.subplots()
+        
+        for gen in range(len(generator_names)):
+            arr_nis = "arr_nis"
+            s_arr_nis = "s_arr_nis"
+            df_to_use = class_dfs_per_gen[gen][count]
+            # print(gen, count)
+            # print("check:", df_to_use["s_arr_nis"])
+            bin_intervals = np.arange(0, max(df_to_use['arrival']), 0.0001)
+            # Bin the time series data
+            x_gen_arrivals = np.digitize(df_to_use['arrival'], bin_intervals) - 1
+            # Plot the actual series
+            if count != 0:
+                arr_nis = arr_nis + "_class_" + str(count-1)
+                s_arr_nis = s_arr_nis + "_class_" + str(count-1)
+            if gen == 0:
+                ax.plot(x_gen_arrivals, df_to_use[arr_nis], label='Actual NIS')
+            # Plot the generated series
+            ax.plot(x_gen_arrivals, df_to_use[s_arr_nis], label=generator_names[gen] + '-Generated')
+        
+        plt.xlabel("Time")
+        plt.ylabel("NIS")
+        plt_title = time_name + ' Comparison of Generated vs. Actual NIS-' + class_names[count]
+        plt.title(plt_title)
+
+        # Display the legend
+        ax.legend()
+
+        filename = time_name + " " + spec_name + ' Time Series NIS'  + '-' + class_names[count]
+        save_path = os.path.join(os.getcwd(), "{}.png".format(filename))
+        plt.savefig(save_path, dpi=300)
+        plt.close(fig)
+
+def graph_hist_cumulative_ts(new_dfs, gen_name, simulation_names, spec_name, time_name):
+    count_for_names = 0
+    for class_df in new_dfs:
+        name = gen_name + "-" + simulation_names[count_for_names]
+        # qq_plot(class_df["sojourn"], class_df["s_sojourn"], name)
+        # plot_hist(class_df["s_arr_nis"], class_df["arr_nis"], x_label="NIS", num_bin=50, name = name)
+        # plot_hist(class_df['s_sojourn'], class_df['sojourn'], x_label="Sojourn", num_bin=50, name =name)
+        # Define the bin intervals
+        bin_intervals = np.arange(0, max(class_df['arrival']), 0.0001)
+        # Bin the time series data
+        x_gen_arrivals = np.digitize(class_df['arrival'], bin_intervals) - 1
+        # plot_ts(x_gen_arrivals, #df['arrival'].values[0:len(generated_log['arrival'])],
+        #     class_df['s_arr_nis'], class_df['arr_nis'].values[0:len(class_df['arrival'])], "NIS", name)
+        if simulation_names[count_for_names] == "All Classes":
+            plot_ts(x_gen_arrivals, #df['arrival'].values[0:len(generated_log['arrival'])],
+                class_df['arrival_count'], class_df['cum_arrival'].values[0:len(class_df['arrival'])],
+                    "Cumulative Arrival", name, spec_name, time_name)
+        count_for_names += 1
 
 #learning and bootstrapping
-def learn_generator(X, y , log_scale=True, model_based_sampling=True, allow_neg=False):
-        if log_scale:
-            y = np.log(y)
-        ebm = ExplainableBoostingRegressor()
-        residuals = []
-        if model_based_sampling:
-            ebm_predict = True
-            if ebm_predict:
-                #ebm.fit(clusters, y)
-                #residuals = np.array(y - ebm.predict(clusters))
-                ebm.fit(X, y)
-                residuals = np.array(y - ebm.predict(X))
-        return ebm, residuals
-def sample_arrivals(df, static_context, n):
-    # we will bootstrap arrivals
-    class_counts = df['class'].value_counts()
-    # Compute the proportions by dividing the counts by the total number of samples
-    class_proportions = class_counts / len(df)
-    # Convert the proportions to a dictionary
-    class_values = (class_proportions * n).round().astype(int)
-    diff = n - class_values.sum()
-    class_values[class_values.idxmax()] += diff
-    # Convert the values to a dictionary
-    class_values_dict = class_values.to_dict()
+def get_generators(X, training_df, all_classes, classes):
+    ebm_generators, ebm_residuals = ebm_models(X, all_classes, training_df, classes)
+    rf_generators, rf_residuals = random_forest(X, all_classes, training_df, classes)
+    generators = [ebm_generators, rf_generators, False]
+    residuals = [ebm_residuals, rf_residuals, False]   
+    return generators, residuals
 
+def ebm_models(X, all_classes, df, classes):
+    ebms = []
+    residuals = []
+    X["class"] = classes
+    X_dfs = []
+    for c in all_classes:
+        ebms.append(ExplainableBoostingRegressor())
+        X_dfs.append(X[X["class"] == c])
+        y = df[df["class"] == c]["sojourn"]
+        X_dfs[c].drop("class", axis = 1, inplace = True)
+        ebms[c].fit(X_dfs[c], y)
+        residuals.append(np.array(y - ebms[c].predict(X_dfs[c])))
 
-    # Optional: Shuffle the rows in the new DataFrame
-    sampled_context = df[static_context].sample(n=n, replace=True).reset_index(drop=True)
+    X.drop("class", axis = 1, inplace = True)
 
+    return ebms, residuals
 
-    #todo: idea - sample from same class, but sample indices to grab context.
-    sampled_arrivals = {}
-    for c in df['class'].unique():
-        df_arrivals = df[df['class']==c]['arrival'].copy(deep=True)
-        df_arrivals.sort_values(inplace=True)
-        df_arrivals.reset_index(inplace=True, drop=True)
-        time_between_arrivals = df_arrivals.diff()
-        time_between_arrivals = time_between_arrivals.drop(0)
-        sampled_arrivals[c] = sample_with_replacement(time_between_arrivals.values, class_values_dict[c])
-
-    return sampled_arrivals, sampled_context
 def compare_cluster_distributions(X, y, k):
     kmeans = KMeans(n_clusters=k)
     kmeans.fit(X)
@@ -190,22 +332,10 @@ def find_best_k(X, y, k_range):
             count+=1
     print('Best k is ', best_k)
     return best_k
-def get_arrivals(df):
-    sampled_arrivals = {}
-    for c in df['class'].unique():
-        df_arrivals = df[df['class']==c]['arrival'].copy(deep=True)
-        df_arrivals.sort_values(inplace=True)
-        df_arrivals.reset_index(inplace=True, drop=True)
-        time_between_arrivals = df_arrivals.diff()
-        time_between_arrivals = time_between_arrivals.drop(0)
-        sampled_arrivals[c] = time_between_arrivals.values
-        # print("time between arrivals:  ", time_between_arrivals.values)
-        print()
-    return sampled_arrivals
 
-def get_arrivals2(df):
+def get_arrivals2(df_for_use):
     sampled_arrivals = {}
-    df_arrivals = df['arrival'].copy(deep=True)
+    df_arrivals = df_for_use['arrival'].copy(deep=True)
     df_arrivals.sort_values(inplace=True)
     df_arrivals.reset_index(inplace=True, drop=True)
     time_between_arrivals = df_arrivals.diff()
@@ -231,10 +361,27 @@ def sample_from_gamma_clusters(num_samples, shape, loc, scale):
     samples = gamma.rvs(shape, loc=loc, scale=scale, size=num_samples)
     return samples
 
+def random_forest(X, all_classes, df, classes):
+    rfs = []
+    residuals = []
+    X["class"] = classes
+    X_dfs = []
+    for c in all_classes:
+        rfs.append(RandomForestRegressor(min_samples_leaf=30, max_depth=None, n_estimators=100, random_state=0))
+        X_dfs.append(X[X["class"] == c])
+        y = df[df["class"] == c]["sojourn"]
+        X_dfs[c].drop("class", axis = 1, inplace = True)
+        rfs[c].fit(X_dfs[c], y)
+        residuals.append(np.array(y - rfs[c].predict(X_dfs[c])))
+
+    X.drop("class", axis = 1, inplace = True)
+
+    return rfs, residuals
+
 #simulation functions:
 def write_event(nis, generator, residuals, departure_calendar,
                 log_scale, generated_log, arrival_count,
-                kmeans, gamma_params, generator_flag, nis_vec, arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names):
+                kmeans, gamma_params, generator_flag, nis_vec, arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names, intervention):
 
     arrival_count += 1
     nis_vec[new_class] += 1
@@ -276,6 +423,8 @@ def write_event(nis, generator, residuals, departure_calendar,
             ind = col_names.index("last_rem_class_0")
             pred_features[ind+c] = nis_vec[c]
 
+    col_for_consult = col_names.index("Consult_Yes")
+
     if generator_flag:
         gen_duration = [0]
         while gen_duration[0]<=0:
@@ -283,14 +432,10 @@ def write_event(nis, generator, residuals, departure_calendar,
     else:
         cur_params = gamma_params[kmeans.predict([pred_features])[0]]
         gen_duration = sample_from_gamma_clusters(1, cur_params[0], cur_params[1], cur_params[2])
-        
     
-    '''
-    if consult:
-        gen_duration = max(gen_duration - 30, 5)
-    '''
-
-
+    if context[col_for_consult] and gen_duration > 60:
+                gen_duration = max(60, gen_duration - intervention)
+        
     departure_timestamp = arr_timestamp + gen_duration
     #departure time is added to the calendar
     heapq.heappush(departure_calendar, (departure_timestamp[0], new_class, context))
@@ -311,13 +456,10 @@ def write_event(nis, generator, residuals, departure_calendar,
 
     return prev_sojourn, prev_arrival, arrival_count, nis, nis_vec
 
-def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_context, kmeans, gamma_parms, generator_flag, all_classes, classes, col_names):
+def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_context, kmeans, gamma_parms, generator_flag, all_classes, classes, col_names, intervention):
     # heapq.heapify(arrival_calendar)
     arrival_calendar = []
     departure_calendar = []
-
-
-    # print("sampled context", sampled_context)
 
     cur_ts = 0
     eps_ = 0.00001
@@ -342,9 +484,6 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
     generated_log = {'arrival_count':[], 'class': [], 'arrival': [], 's_departure': [], 's_arr_nis': [], 's_sojourn': []}
     for c in all_classes:
         last_los_vec.append(0)
-        # if c == classes[0]:
-        #     nis_vec.append(1)
-        # else:
         nis_vec.append(0)
         generated_log['s_arr_nis_class_'+str(c)] = []
     generated_log['s_last_remaining_los'] = []
@@ -359,20 +498,20 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
     prev_sojourn = 0
     prev_class = new_class
 
-
     # print("first arrival", arr_timestamp, new_class, context)
 
     prev_sojourn, prev_arrival, arrival_count, nis, nis_vec = write_event(nis, generator, residuals, departure_calendar, log_scale, generated_log,
-                    arrival_count, kmeans, gamma_parms, generator_flag, nis_vec, arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names)
+                    arrival_count, kmeans, gamma_parms, generator_flag, nis_vec, arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names, intervention)
 
 
     while len(arrival_calendar) > 0:
-        if arrival_count % 500 == 0:
-            print('arrivals # :', arrival_count)
-            print('nis vec: ', nis_vec)
-            print('total nis:', nis)
-            print('last los vec:', last_los_vec)
+        # if arrival_count % 500 == 0:
+            # print('arrivals # :', arrival_count)
+            # print('nis vec: ', nis_vec)
+            # print('total nis:', nis)
+            # print('last los vec:', last_los_vec)
 
+        
         if len(departure_calendar)==0:
             '''
             line below didnt have , context ?
@@ -381,16 +520,18 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
             prev_sojourn, prev_arrival, arrival_count, nis, nis_vec = \
                 write_event(nis, generator, residuals, departure_calendar,
                             log_scale, generated_log, arrival_count, kmeans, gamma_parms, generator_flag, nis_vec,
-                            arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names)
+                            arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names, intervention)
             prev_class = new_class
 
-        elif arrival_calendar[0] <= departure_calendar[0]:
+        elif arrival_calendar[0][0] <= departure_calendar[0][0]:
+            
+
 
             arr_timestamp, new_class, context = heapq.heappop(arrival_calendar)
             prev_sojourn, prev_arrival, arrival_count, nis, nis_vec =\
                 write_event(nis,  generator, residuals, departure_calendar,
                             log_scale, generated_log, arrival_count, kmeans, gamma_parms, generator_flag, nis_vec, 
-                            arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names)
+                            arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names, intervention)
             prev_class = new_class
 
         else:
@@ -408,126 +549,26 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
 
     return generated_log
 
-def plot_graphs(sojourn, s_sojourn, name, class_list, all_classes):
-    print(len(sojourn), len(s_sojourn), len(class_list))
-    new_d = {"sojourn": sojourn, "s_sojourn": s_sojourn, "class": class_list}
-    new_df = pd.DataFrame(data=new_d)
-    [sojourn, s_sojourn, classes]
+def get_class_dfs(generated_log, y, original_df):  
+    # take only patients after first 100
+    for k, v in generated_log.items():
+        generated_log[k] = v[100:]
+            
+    actual_sojourn = y.to_numpy()[100:]
+    simulated_sojourn = generated_log['s_sojourn']
+    
+    # split dataframe into all_classes + 1 dfs
+    new_d = {"sojourn": actual_sojourn, "s_sojourn": simulated_sojourn, "class": original_df["class"][100:], "arr_nis": original_df["arr_nis"][100:], "arr_nis_class_0": original_df["arr_nis_class_0"][100:], "arr_nis_class_1": original_df["arr_nis_class_1"][100:], "arr_nis_class_2": original_df["arr_nis_class_2"][100:], "s_arr_nis": generated_log["s_arr_nis"], "s_arr_nis_class_0": generated_log["s_arr_nis_class_0"], "s_arr_nis_class_1": generated_log["s_arr_nis_class_1"], "s_arr_nis_class_2": generated_log["s_arr_nis_class_2"], "arrival_count": generated_log["arrival_count"], "cum_arrival": original_df["cum_arrival"][100:], "arrival": generated_log["arrival"]}
+    all_classes_df = pd.DataFrame(data=new_d)
+    new_dfs = [all_classes_df]
     for c in all_classes:
-        y = new_df[new_df["class"] == c]["sojourn"]
-        y2 = new_df[new_df["class"] == c]["s_sojourn"]
-        qq_plot(y, y2, name + "-Class " + str(c))
+        new_dfs.append(all_classes_df[all_classes_df["class"] == c])
 
-
-def qq_plot(data1, data2, name, plot_min=0, plot_max=None):
-    """
-    Plots the Q-Q plots of quantiles of actual and simulated LOS for 1 patient type and saves the plot
-
-    @ params:
-        data1 (list): quantiles from data on the x-axis --> actual LOS
-        data2 (list): quantiles from data on the y-axis --> simulated LOS
-        plot_min (int, default=None): minimum value for x-axis and y-axis
-        plot_max (int, default=None): maximum value for x-axis and y-axis
-    """
-
-    # Set up the plot parameters
-    sns.set_color_codes("colorblind")
-    fig = None
-    fig, _ = plt.subplots(1, 1, figsize=(8, 6), sharex='all', sharey='all', clear=True)  # ((ax1))
+    return new_dfs
     
-    plot_name = 'Q-Q Plot ' + str(name)
-    fig.suptitle(plot_name)
-
-    for i, ax_n in enumerate(fig.get_axes()):
-        # Computes quantiles and plots them
-        quantiles = min(len(data1), len(data2))
-        quantiles = np.linspace(start=0, stop=1, num=int(quantiles))
-        x_quantiles = np.quantile(data1, quantiles)
-        y_quantiles = np.quantile(data2, quantiles)
-        ax_n.scatter(x_quantiles, y_quantiles)
-
-        # Finds the max and min values to use for the x-axis and y-axis
-        data1_min, data1_max = min(data1), max(data1)
-        data2_min, data2_max = min(data2), max(data2)
-        x_min = np.floor(min(data1_min, data2_min))
-        x_max = np.ceil(max(data1_max, data2_max))
-        x = np.linspace(x_min, x_max, int(x_max - x_min + 1))
-        ax_n.plot(x, x, 'k-')  # Plots a 45-degree line
-
-        ax_n.set_xlabel('Simulated LOS Quantiles')
-        ax_n.set_ylabel('Actual LOS Quantiles')
-
-        # Sets the x-axis limits and y-axis limits
-        if (plot_min is not None) and (plot_max is not None):
-            ax_n.set_xlim(plot_min, plot_max)
-            ax_n.set_ylim(plot_min, plot_max)
-        else:
-            ax_n.set_xlim(x_min, x_max)
-            ax_n.set_ylim(x_min, x_max)
-
-    save_path = os.path.join(os.getcwd(), "{}.png".format(plot_name))
-    plt.savefig(save_path, dpi=300)
-    plt.close(fig)
-
-def random_forest(X, all_classes, df, classes):
-    rfs = []
-    residuals = []
-    X["class"] = classes
-    X_dfs = []
-    for c in all_classes:
-        rfs.append(RandomForestRegressor(min_samples_leaf=30, max_depth=None, n_estimators=100, random_state=0))
-        X_dfs.append(X[X["class"] == c])
-        y = df[df["class"] == c]["sojourn"]
-        X_dfs[c].drop("class", axis = 1, inplace = True)
-        rfs[c].fit(X_dfs[c], y)
-        residuals.append(np.array(y - rfs[c].predict(X_dfs[c])))
-
-    X.drop("class", axis = 1, inplace = True)
-
-    return rfs, residuals
-
-
-if __name__ == "__main__":
-    nis_residual_specs = 3
-    # nis_residual_specs: 
-    # 0 = arr_nis + last_rem_los
-    # 1 = arr_nis per class + last_rem_los
-    # 2 = arr_nis + last_rem_los per class
-    # 3 = arr_nis per class + last_rem_los per class
-
-    #initialize the experiment:
-    n = 1000
-    # df = pd.read_csv('horizontal_multi_many.csv')
-    pre_processed = True
-    if pre_processed:
-        df = pd.read_pickle("1000_original_cleaned.pkl")
-    else:
-        df = main_process("10500_original.csv")
-    
-    print("dataframe loaded")
-    #todo:
-    #1. Arik to check log scale issue.
-    #2. Daphne: use data arrivals for now
-    #3. Daphne: one-hot encode "class"
-    #4. Run NYGH data through this pipeline
-    #5. EBM - feature importance
-    static_context = ['class', 'Triage Code', 'Age Category', 'Initial Zone', 'Gender Code', 'Ambulance', 'Consult', 'Admission']# ['x1', 'x2']
-    '''
-    dummie_context = []
-    for con in static_context:
-        for item in df[con].unique():
-            dummie_context.append(con+"_" + str(item))
-    print("dummie_context:", dummie_context)
-    '''
-    # static_context = []
-    features = []
-    # dont give arr_nis ? 
-    for s in static_context:
-        features.append(s)
-    all_classes = df['class'].astype(int).unique().tolist() # make 0, 1, 2
-    all_classes.sort()
-    
-    match nis_residual_specs:
+def get_features(specification):
+    features = features = ['class', 'Triage Code', 'Age Category', 'Initial Zone', 'Gender Code', 'Ambulance', 'Consult', 'Admission']   
+    match specification:
         case 0:
             features.append("arr_nis")
             features.append("last_remaining_los")
@@ -544,74 +585,174 @@ if __name__ == "__main__":
                 features.append('arr_nis_class_' + str(c))
             for c in all_classes:
                 features.append('last_rem_class_' + str(c))
+    return features
+        
+def run_all_generators(main_df, class_types, gen_names, class_names, spec_names, time_name, runs, prev_gens = None, prev_kmeans_gamma = None, prev_gen_flag = False, log_scale = False, generator_flag = True):
+    # logs = []
+    final_generators = {}
+    kmeans_gamma = {}
+    ks_stats = []
+    sums = {}
+    for c in class_names:
+        ks_stats.append({"vals": ["p_nis", "p_sojourn", "stat_nis", "stat_sojourn"]})
+    save_path = os.path.join(os.getcwd(), "ks_stats.xlsx")
+    writer = pd.ExcelWriter(save_path, engine='xlsxwriter') 
+    workbook=writer.book
+    ranks = {}
+    classes = main_df['class'].copy(deep=True).astype(int).to_numpy()
+    
+    
+    for nis_residual_spec in range(2):
+        spec_name = spec_names[nis_residual_spec]
+        features = get_features(nis_residual_spec)
+        arrivals = get_arrivals2(main_df)
+        context = main_df[features]
+        context = pd.get_dummies(data=context, drop_first=True)
+        col_names = context.columns.tolist()
+        print(col_names, len(context.columns))
+        if prev_gen_flag:
+            generators, residuals = prev_gens[spec_name]
+            kmeans, gamma_params = prev_kmeans_gamma[spec_name]
+        else:
+            generators, residuals = get_generators(context, main_df,  class_types, classes)
+            final_generators[spec_name] = (generators, residuals)
+            K_max = 20
+            k_best = find_best_k(context, main_df["sojourn"], range(2,K_max))
+            kmeans, gamma_params = fit_gamma(main_df, context, y_label='sojourn', K=k_best)
+            kmeans_gamma[spec_name] = (kmeans, gamma_params)
+        
+        class_spec_dfs = []
+        for r in range(runs):    
+            for i in range(len(gen_names)):
+                generator_flag = True
+                gen_name = gen_names[i]
+                print(spec_name + ", " + gen_name)
+
+                if generators[i] == False and residuals[i] == False:
+                    generator_flag = False # clustering
+
+                start = timer()
+                generated_log = simulate_system(generators[i], residuals[i], log_scale,
+                                            arrivals, context,  kmeans, gamma_params, generator_flag, class_types, classes, col_names, intervention = 0)
+                
+                end = timer()
+                print("time for run:", end-start)
+                #write results
+                pd.DataFrame.from_dict(generated_log).to_csv(time_name +" " +spec_name + 'results_'+ str(gen_names[i]) + "_" +str(r)+'.csv', index=False)
+                print("saved results\n")
+
+                class_dfs = get_class_dfs(generated_log, main_df["sojourn"], main_df)
+                p_nis, p_sojourn, stat_nis, stat_sojourn = get_ks_test_vals(class_dfs, class_names)
+                # print(class_names)
+                # print("p_nis:", p_nis)
+                # print("p_sojourn:", p_sojourn)
+                # print("stat_nis:", stat_nis)
+                # print("stat_sojourn:", stat_sojourn)
+                for c in range(len(class_names)):
+                    final_stats = [p_nis[c], p_sojourn[c], stat_nis[c], stat_sojourn[c]]
+                    ks_stats[c][gen_name] = final_stats
+                    # if c == 0:
+                    #     sums[spec_name+gen_name] = stat_nis[c] + stat_sojourn[c]
+            
+                # logs.append(generated_log)
+                # graph_hist_cumulative_ts(class_dfs, gen_name, class_names, spec_name, time_name)
+                class_spec_dfs.append(class_dfs)
+                
+            # plot_nis_ts(class_spec_dfs, gen_names, class_names, spec_name, time_name)
+            # plot_graphs(class_spec_dfs, gen_names, class_names, spec_name, time_name)
+        
+        worksheet=workbook.add_worksheet(spec_name)
+        writer.sheets[spec_name] = worksheet
+        for ind, name in enumerate(class_names):
+            ks_df = pd.DataFrame.from_dict(ks_stats[ind])
+            # row = nis_residual_spec*5
+            row = ind*7+1
+            worksheet.write(row-1, 0, name)
+            ks_df.to_excel(writer, sheet_name=spec_name, startrow=row, index=False)
+        
+        print(ks_stats[0])
+        stat_nis_dict = {}
+        stat_soj_dict = {}
+        for gen in gen_names:
+            stat_nis_dict[gen] = ks_stats[0][gen][2]
+            stat_soj_dict[gen] = ks_stats[0][gen][3]
+        print("stat_nis_dict:", stat_nis_dict)
+        print("stat_soj_dict:", stat_soj_dict)
+        sorted_nis = sorted(stat_nis_dict.items(), key=lambda x:x[1])
+        sorted_soj = sorted(stat_soj_dict.items(), key=lambda x:x[1])
+        print("sorted_nis:", sorted_nis)
+        print("sorted_soj:", sorted_soj)
+        gen_counters = {}
+        for ind, (gen_key, val) in enumerate(sorted_nis):
+            gen_counters[gen_key] = ind
+        for ind, (gen_key, val) in enumerate(sorted_soj):
+            gen_counters[gen_key] = gen_counters[gen_key] + ind
+
+        print("gen_counters:", gen_counters)   
 
 
-    X = df[features]
-    X = pd.get_dummies(data=X, drop_first=True)
-    classes = df['class'].copy(deep=True).astype(int).to_numpy()
+        # print(ks_stats)
+    writer._save()
+    # print(sums)
+    # print(min(sums, key=sums.get))
+    # best_gen = min(sums, key=sums.get).split("-")
+    # print(best_gen)
+    best_gen = []
+    return best_gen, final_generators, kmeans_gamma
+    
+if __name__ == "__main__":
+    nis_residual_specs = 3
+    # nis_residual_specs: 
+    # 0 = arr_nis + last_rem_los
+    # 1 = arr_nis per class + last_rem_los
+    # 2 = arr_nis + last_rem_los per class
+    # 3 = arr_nis per class + last_rem_los per class
 
-    col_names = X.columns.tolist()
-    print(col_names, len(X.columns))
-    y = df['sojourn']
-    log_scale = False
-    generator_flag = True
-    ebm_generators = []
-    ebm_residuals = []
-    ebm_generator, ebm_residual = learn_generator(X, y, log_scale=log_scale, model_based_sampling=True, allow_neg=True)
-    rf_generators, rf_residuals = random_forest(X, all_classes, df, classes)
-    for c in all_classes:
-        ebm_generators.append(ebm_generator)
-        ebm_residuals.append(ebm_residual)
-    generators = [ebm_generators, rf_generators, False]
-    residuals = [ebm_residuals, rf_residuals, False]
+    pre_processed = True
+    if pre_processed:
+        df = pd.read_pickle("FirstThree_cleaned.pkl")
+    else:
+        df = main_process("FirstThree.csv")
+    
+    training = ["1/1/2016", "3/1/2016"]
+    last_month = datetime.strptime(training[1], '%m/%d/%Y') - timedelta(days=1)
+    last_month = last_month.strftime("%m/%d/%Y")
+    training_months = [datetime.strptime(date, '%m/%d/%Y').strftime('%b') for date in [training[0], last_month]]
+    testing = ["3/1/2016", "4/1/2016"]
+    last_month = datetime.strptime(testing[1], '%m/%d/%Y') - timedelta(days=1)
+    last_month = last_month.strftime("%m/%d/%Y")
+    testing_months = [datetime.strptime(date, '%m/%d/%Y').strftime('%b') for date in [testing[0], last_month]]
+    print(training_months)
+    print(testing_months)
+
+    
+    train_df = df[df["Triage DateTime"] >= training[0]]
+    train_df = train_df[train_df["Triage DateTime"] < training[1]]
+    test_df = df[df["Triage DateTime"] >= testing[0]]
+    test_df = test_df[test_df["Triage DateTime"] < testing[1]]
+
+    # print(train_df)
+    # print(test_df)
+
+    print("dataframes loaded")
+
+    
+    all_classes = df['class'].astype(int).unique().tolist()
+    all_classes.sort() 
     generator_names = ["EBM", "RF", "Clustering"]
+    class_names = ["All Classes", "Class 0", "Class 1", "Class 2"]
+    specification_names = ["1NIS_1Res", "3NIS_1Res", "1NIS_3Res", "3NIS_3Res"]
 
-    # replace X with train in learn_generator
-    K_max = 20
-    k_best = find_best_k(X, y, range(2,K_max))
-    kmeans, gamma_params = fit_gamma(df, X, y_label='sojourn', K=k_best)
-    # bootstrap n new arrivals (new horizon)
-    runs = 1
-    for r in range(runs):
-        # sampled_arrivals, sampled_context = sample_arrivals(df, static_context,  n)
+    _, trained_gens, trained_clustering = run_all_generators(train_df, all_classes, generator_names, class_names, specification_names, "Train(" + training_months[0] + "-" + training_months[1] + ")", 1)
+    print("done training")
+    best_gen, _,_ = run_all_generators(test_df, all_classes, generator_names, class_names, specification_names, "Test(" + testing_months[0] + ")", 1, trained_gens, trained_clustering, prev_gen_flag=True)
+    print(best_gen)
+    
         
-        # sampled_arrivals = df['arrival'].diff().copy()#copy()#sample_arrivals(df, n)
-        # sampled_arrivals = sampled_arrivals.drop(0)
-        # sampled_arrivals = sampled_arrivals.values[0:n]
-        
-        sampled_arrivals = get_arrivals2(df)
-        sampled_context = X
-        # here still on train
-        # print("sampled arrivals keys:", sampled_arrivals.keys())
-        # print("sampled_context:", sampled_context)
 
-        # print("sampled arrivals:", sampled_arrivals)
-        
-        
-        #simulate the qnet
-        for i in range(3):
-            if generators[i] == False and residuals[i] == False:
-                # clustering
-                generator_flag = False
-            start = timer()
-            generated_log = simulate_system(generators[i], residuals[i], log_scale,
-                                        sampled_arrivals, sampled_context,  kmeans, gamma_params, generator_flag, all_classes, classes, col_names)
-            
-            end = timer()
-            print("time for run:", end-start)
-            #write results
-            pd.DataFrame.from_dict(generated_log).to_csv('results_'+ str(generator_names[i]) + "_" +str(r)+'.csv', index=False)
-            print("saved results")
-            # compute and plot stats
-            for k, v in generated_log.items():
-                generated_log[k] = v[100:]
-            # compute_stats(generated_log, df.iloc[100:])
-            print("calculated stats")
-            data1 = y.to_numpy()[100:]
-            data2 = generated_log['s_sojourn']
-            plot_graphs(data1, data2, generator_names[i], classes[100:], all_classes)
-            # qq_plot(data1, data2, generator_names[i])
-            
+    interventions = [0, 60, 180, 300]
 
-            # choose best test out of the different runs (8 options)
-            # run simulate sysyem on the test data with the "best" moddel
+# whichever generator is best:
+# for each intervention 
+# main run:
+# 

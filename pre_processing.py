@@ -16,6 +16,7 @@ def check_float_and_convert_to_datetime(input_val):
     """
     if type(input_val) != float:
         return datetime.strptime(input_val, "%m/%d/%Y %H:%M")
+        # return datetime.strptime(input_val, "%Y-%m-%d %H:%M:%S")
 
 def max_arrival_time(ambulance, triage):
     """
@@ -71,6 +72,8 @@ def clean_data(df):
     df['arrival'] = df.apply( lambda row: (row['arrival_datetime'] - first_arrival).total_seconds() // 60, axis = 1)
     df['departure'] = df.apply( lambda row: (row['departure_datetime'] - first_arrival).total_seconds() // 60, axis = 1)
     
+    df["Triage DateTime"] = pd.to_datetime(df["Triage DateTime"], format="%m/%d/%Y %H:%M")
+
     return df
 
 def create_classes(df):
@@ -107,24 +110,25 @@ def calculate_los_remaining(df):
     df['last_rem_class_1'] = ''
     df['last_rem_class_2'] = ''
 
+    df = df.reset_index(drop=True)
     for ind in df.index:
         if ind == 0:
-            df['last_rem_class_0'][ind] = 0
-            df['last_rem_class_1'][ind] = 0
-            df['last_rem_class_2'][ind] = 0
-        elif df['class'][ind-1] == 0:
-            df['last_rem_class_0'][ind] = max(0, df['departure'][ind-1]-df['arrival'][ind])
-            df['last_rem_class_1'][ind] = max(0, df['last_rem_class_1'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
-            df['last_rem_class_2'][ind] = max(0, df['last_rem_class_2'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
-        elif df['class'][ind-1] == 1:
+            df['last_rem_class_0'].iloc[ind] = 0
+            df['last_rem_class_1'].iloc[ind] = 0
+            df['last_rem_class_2'].iloc[ind] = 0
+        elif df['class'].iloc[ind-1] == 0:
+            df['last_rem_class_0'].iloc[ind] = max(0, df['departure'].iloc[ind-1]-df['arrival'].iloc[ind])
+            df['last_rem_class_1'].iloc[ind] = max(0, df['last_rem_class_1'].iloc[ind-1] - df['arrival'].iloc[ind] + df['arrival'].iloc[ind-1])
+            df['last_rem_class_2'].iloc[ind] = max(0, df['last_rem_class_2'].iloc[ind-1] - df['arrival'].iloc[ind] + df['arrival'].iloc[ind-1])
+        elif df['class'].iloc[ind-1] == 1:
             # print(df['departure'][ind-1], df['arrival'][ind])
-            df['last_rem_class_1'][ind] = max(0, df['departure'][ind-1]-df['arrival'][ind])
-            df['last_rem_class_0'][ind] = max(0, df['last_rem_class_0'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
-            df['last_rem_class_2'][ind] = max(0, df['last_rem_class_2'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
-        elif df['class'][ind-1] == 2:
-            df['last_rem_class_2'][ind] = max(0, df['departure'][ind-1]-df['arrival'][ind])
-            df['last_rem_class_1'][ind] = max(0, df['last_rem_class_1'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
-            df['last_rem_class_0'][ind] = max(0, df['last_rem_class_0'][ind-1] - df['arrival'][ind] + df['arrival'][ind-1])
+            df['last_rem_class_1'].iloc[ind] = max(0, df['departure'].iloc[ind-1]-df['arrival'].iloc[ind])
+            df['last_rem_class_0'].iloc[ind] = max(0, df['last_rem_class_0'].iloc[ind-1] - df['arrival'].iloc[ind] + df['arrival'].iloc[ind-1])
+            df['last_rem_class_2'].iloc[ind] = max(0, df['last_rem_class_2'].iloc[ind-1] - df['arrival'].iloc[ind] + df['arrival'].iloc[ind-1])
+        elif df['class'].iloc[ind-1] == 2:
+            df['last_rem_class_2'].iloc[ind] = max(0, df['departure'].iloc[ind-1]-df['arrival'].iloc[ind])
+            df['last_rem_class_1'].iloc[ind] = max(0, df['last_rem_class_1'].iloc[ind-1] - df['arrival'].iloc[ind] + df['arrival'].iloc[ind-1])
+            df['last_rem_class_0'].iloc[ind] = max(0, df['last_rem_class_0'].iloc[ind-1] - df['arrival'].iloc[ind] + df['arrival'].iloc[ind-1])
             
     df.loc[0, 'last_remaining_los'] = 0
     df.pop('patient_arrival')
@@ -217,7 +221,7 @@ def compute_nis_features(df):
 
 def rearrange_columns(df):
     # df.drop(['Left ED DateTime', 'Triage DateTime', 'Ambulance Arrival DateTime', 'prev_nis_upon_arrival_class_1', 'prev_nis_upon_arrival_class_0', 'prev_nis_upon_arrival_class_2', 'arrival_datetime', 'departure_datetime'], axis=1)
-    df = df[['case', 'class', 'arrival', 'departure', 'arr_nis', 'sojourn', 'cum_arrival', 'arr_nis_class_0', 'arr_nis_class_1', 'arr_nis_class_2', 'last_remaining_los', 'last_rem_class_0', 'last_rem_class_1', 'last_rem_class_2', 'Triage Code', 'Age Category', 'Initial Zone', 'Gender Code', 'Ambulance', 'Consult', 'Admission']]
+    df = df[['Triage DateTime', 'case', 'class', 'arrival', 'departure', 'arr_nis', 'sojourn', 'cum_arrival', 'arr_nis_class_0', 'arr_nis_class_1', 'arr_nis_class_2', 'last_remaining_los', 'last_rem_class_0', 'last_rem_class_1', 'last_rem_class_2', 'Triage Code', 'Age Category', 'Initial Zone', 'Gender Code', 'Ambulance', 'Consult', 'Admission']]
     
     return df
 
