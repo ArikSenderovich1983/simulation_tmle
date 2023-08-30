@@ -60,6 +60,15 @@ def plot_hist(generated_series, actual_series, x_label, num_bin, name):
     plt.close()
 
 def plot_ts(gen_x_values,  generated_series, actual_series, x_label, name, spec_name, time_name):
+    '''
+    Graphs a time series graph for a given value
+    params: gen_x_values: x values for the time
+    generated_series: actual data graphed over time (from simulation)
+    actual series: data graphed over time (actual)
+    x_label: name for the graph
+    spec_name: name of specification
+    time_name: training or testing months
+    '''
     fig = None
     fig, ax = plt.subplots()
 
@@ -90,9 +99,14 @@ def ks_test(generated_series, actual_series, x_label):
     return p_value, statistic
 
 def plot_graphs(class_dfs_per_gen, generator_names, class_names, spec_name, time_name):
+    '''
+    plots qq plots and box whisker plots
+    '''
     data_s_sojourn = []
     data_nis = []
     sojourn = []
+    # loop for each class and generator to create data lists for nis and sojourn
+    # lists are then used to create class specific graphs
     for c in range(len(class_names)):
         for gen in range(len(generator_names)):
             arr_nis = "arr_nis"
@@ -115,6 +129,9 @@ def plot_graphs(class_dfs_per_gen, generator_names, class_names, spec_name, time
         data_nis = []
 
 def plot_box_whisker(data_list, class_name, generator_names, name, spec_name, time_name):
+    '''
+    Graphs box whisker plots given a list of data sets
+    '''
     plt_title = time_name + " " + spec_name + ' Box Plot '+ name + "-" + class_name
     fig, ax = plt.subplots()
     fig.suptitle(plt_title)
@@ -123,6 +140,7 @@ def plot_box_whisker(data_list, class_name, generator_names, name, spec_name, ti
     labels.extend(generator_names)
     colours = ['blue', 'red', 'green', 'orange']
     for d, data in enumerate(data_list):
+        # graphs all box_plots for different generators but the same cclass on class specific pngs
         elements.append(ax.boxplot(data, positions=[ 1 + 3*d], widths = [2], patch_artist=True, boxprops=dict(facecolor=colours[d])))
    
     ax.legend([element["boxes"][0] for element in elements], [labels[idx] for idx,_ in enumerate(data_list)], loc='upper right')
@@ -131,6 +149,39 @@ def plot_box_whisker(data_list, class_name, generator_names, name, spec_name, ti
     save_path = os.path.join(os.getcwd(), "{}.png".format(filename))
     plt.savefig(save_path, dpi=300)
     plt.close()
+
+def plot_intervention_box_plots(data_list, class_name, int_names, time_name):
+    '''
+    plots box plots from interventions
+    '''
+    plt_title = time_name + " Box Plot-" + class_name
+    fig, ax = plt.subplots()
+    fig.suptitle(plt_title)
+    elements = []
+    labels = int_names
+    colours = ['blue', 'red', 'green', 'orange']
+    for d, data in enumerate(data_list):
+        # box plots have each of the four interventions for a specific class
+        elements.append(ax.boxplot(data["s_sojourn"], positions=[1+3*d], widths = [2], patch_artist=True, boxprops=dict(facecolor=colours[d])))
+   
+    ax.legend([element["boxes"][0] for element in elements], [labels[idx] for idx,_ in enumerate(data_list)], loc='upper right')
+
+    # fix naming system
+    plt.savefig('Boxplots-{}.png'.format(class_name), dpi=300)
+    # plt.show()
+    plt.close()
+
+def prepare_box_plots(class_spec_dfs, intervention_names, class_names, time_name):
+    '''
+    prepares the data for the box plots
+    created data lists of the different results per intervention for a certain class
+    '''
+    data = []
+    for c, name in enumerate(class_names):
+        for intrv in intervention_names:
+            data.append(class_spec_dfs[intrv][c])
+        plot_intervention_box_plots(data, name, intervention_names, time_name)
+        data = []
 
 def qq_plot(data1, data2, name, generator_names, spec_name, time_name, plot_min=0, plot_max=None):
     """
@@ -187,6 +238,9 @@ def qq_plot(data1, data2, name, generator_names, spec_name, time_name, plot_min=
     plt.close(fig)
 
 def get_ks_test_vals(dfs, class_types):
+    '''
+    helper function to get the statistics from the ks_test
+    '''
     count_for_names = 0
     p_sojourn = []
     stat_sojourn = []
@@ -205,11 +259,14 @@ def get_ks_test_vals(dfs, class_types):
     return p_nis, p_sojourn, stat_nis, stat_sojourn
 
 def plot_nis_ts(class_dfs_per_gen, generator_names, class_names, spec_name, time_name):
-    
+    '''
+    plots the time series graph for the nis
+    '''
     for count in range(len(class_names)):
         fig = None
         fig, ax = plt.subplots()
         
+        # for each generator, plot the simulated sojourn
         for gen in range(len(generator_names)):
             arr_nis = "arr_nis"
             s_arr_nis = "s_arr_nis"
@@ -224,6 +281,7 @@ def plot_nis_ts(class_dfs_per_gen, generator_names, class_names, spec_name, time
                 arr_nis = arr_nis + "_class_" + str(count-1)
                 s_arr_nis = s_arr_nis + "_class_" + str(count-1)
             if gen == 0:
+                # graph the actual nis one time
                 ax.plot(x_gen_arrivals, df_to_use[arr_nis], label='Actual NIS')
             # Plot the generated series
             ax.plot(x_gen_arrivals, df_to_use[s_arr_nis], label=generator_names[gen] + '-Generated')
@@ -245,15 +303,11 @@ def graph_hist_cumulative_ts(new_dfs, gen_name, simulation_names, spec_name, tim
     count_for_names = 0
     for class_df in new_dfs:
         name = gen_name + "-" + simulation_names[count_for_names]
-        # qq_plot(class_df["sojourn"], class_df["s_sojourn"], name)
-        # plot_hist(class_df["s_arr_nis"], class_df["arr_nis"], x_label="NIS", num_bin=50, name = name)
-        # plot_hist(class_df['s_sojourn'], class_df['sojourn'], x_label="Sojourn", num_bin=50, name =name)
         # Define the bin intervals
         bin_intervals = np.arange(0, max(class_df['arrival']), 0.0001)
         # Bin the time series data
         x_gen_arrivals = np.digitize(class_df['arrival'], bin_intervals) - 1
-        # plot_ts(x_gen_arrivals, #df['arrival'].values[0:len(generated_log['arrival'])],
-        #     class_df['s_arr_nis'], class_df['arr_nis'].values[0:len(class_df['arrival'])], "NIS", name)
+        # plot the cumulative arrival to see that they are the same
         if simulation_names[count_for_names] == "All Classes":
             plot_ts(x_gen_arrivals, #df['arrival'].values[0:len(generated_log['arrival'])],
                 class_df['arrival_count'], class_df['cum_arrival'].values[0:len(class_df['arrival'])],
@@ -262,6 +316,7 @@ def graph_hist_cumulative_ts(new_dfs, gen_name, simulation_names, spec_name, tim
 
 #learning and bootstrapping
 def get_generators(X, training_df, all_classes, classes):
+    # gets the generators for EBM and RF and returns them
     ebm_generators, ebm_residuals = ebm_models(X, all_classes, training_df, classes)
     rf_generators, rf_residuals = random_forest(X, all_classes, training_df, classes)
     generators = [ebm_generators, rf_generators, False]
@@ -269,14 +324,17 @@ def get_generators(X, training_df, all_classes, classes):
     return generators, residuals
 
 def ebm_models(X, all_classes, df, classes):
+    # creates three different ebm models for each class
     ebms = []
     residuals = []
     X["class"] = classes
     X_dfs = []
     for c in all_classes:
         ebms.append(ExplainableBoostingRegressor())
+        # looks at only a certain class type
         X_dfs.append(X[X["class"] == c])
         y = df[df["class"] == c]["sojourn"]
+        # drops the class column so that it isn't used in the simulation
         X_dfs[c].drop("class", axis = 1, inplace = True)
         ebms[c].fit(X_dfs[c], y)
         residuals.append(np.array(y - ebms[c].predict(X_dfs[c])))
@@ -333,7 +391,8 @@ def find_best_k(X, y, k_range):
     print('Best k is ', best_k)
     return best_k
 
-def get_arrivals2(df_for_use):
+def get_arrivals(df_for_use):
+    # returns a list of all the arrival values
     sampled_arrivals = {}
     df_arrivals = df_for_use['arrival'].copy(deep=True)
     df_arrivals.sort_values(inplace=True)
@@ -362,6 +421,7 @@ def sample_from_gamma_clusters(num_samples, shape, loc, scale):
     return samples
 
 def random_forest(X, all_classes, df, classes):
+    # creates three different RF models (one for each class)
     rfs = []
     residuals = []
     X["class"] = classes
@@ -369,7 +429,9 @@ def random_forest(X, all_classes, df, classes):
     for c in all_classes:
         rfs.append(RandomForestRegressor(min_samples_leaf=30, max_depth=None, n_estimators=100, random_state=0))
         X_dfs.append(X[X["class"] == c])
+        # adds a part of the df that is a certain class
         y = df[df["class"] == c]["sojourn"]
+        # drops class column so it isn't used for fitting the models
         X_dfs[c].drop("class", axis = 1, inplace = True)
         rfs[c].fit(X_dfs[c], y)
         residuals.append(np.array(y - rfs[c].predict(X_dfs[c])))
@@ -428,13 +490,21 @@ def write_event(nis, generator, residuals, departure_calendar,
     if generator_flag:
         gen_duration = [0]
         while gen_duration[0]<=0:
+            if len(generator) < 3:
+                print("in here")
+                print(generator)
+            if new_class != 0 and new_class != 1 and new_class != 2:
+                print("hey")
+                print(generator)
+                print(new_class)
             gen_duration = return_func(log_scale)(generator[new_class].predict([pred_features]) + sample_with_replacement(residuals[new_class], num_samples=1))
     else:
         cur_params = gamma_params[kmeans.predict([pred_features])[0]]
         gen_duration = sample_from_gamma_clusters(1, cur_params[0], cur_params[1], cur_params[2])
     
-    if context[col_for_consult] and gen_duration > 60:
-                gen_duration = max(60, gen_duration - intervention)
+    if context[col_for_consult] and gen_duration > 60 and intervention != 0:
+                gen_duration = [max(60, gen_duration[0] - intervention)]
+                departure_timestamp = arr_timestamp + gen_duration
         
     departure_timestamp = arr_timestamp + gen_duration
     #departure time is added to the calendar
@@ -498,6 +568,7 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
     prev_sojourn = 0
     prev_class = new_class
 
+
     # print("first arrival", arr_timestamp, new_class, context)
 
     prev_sojourn, prev_arrival, arrival_count, nis, nis_vec = write_event(nis, generator, residuals, departure_calendar, log_scale, generated_log,
@@ -528,8 +599,7 @@ def simulate_system(generator, residuals, log_scale, sampled_arrivals, sampled_c
 
 
             arr_timestamp, new_class, context = heapq.heappop(arrival_calendar)
-            prev_sojourn, prev_arrival, arrival_count, nis, nis_vec =\
-                write_event(nis,  generator, residuals, departure_calendar,
+            prev_sojourn, prev_arrival, arrival_count, nis, nis_vec = write_event(nis,  generator, residuals, departure_calendar,
                             log_scale, generated_log, arrival_count, kmeans, gamma_parms, generator_flag, nis_vec, 
                             arr_timestamp, new_class, prev_arrival, prev_sojourn, context, last_los_vec, prev_class, col_names, intervention)
             prev_class = new_class
@@ -567,6 +637,7 @@ def get_class_dfs(generated_log, y, original_df):
     return new_dfs
     
 def get_features(specification):
+    # returns the features needed for the simulation given a specification
     features = features = ['class', 'Triage Code', 'Age Category', 'Initial Zone', 'Gender Code', 'Ambulance', 'Consult', 'Admission']   
     match specification:
         case 0:
@@ -588,38 +659,46 @@ def get_features(specification):
     return features
         
 def run_all_generators(main_df, class_types, gen_names, class_names, spec_names, time_name, runs, prev_gens = None, prev_kmeans_gamma = None, prev_gen_flag = False, log_scale = False, generator_flag = True):
-    # logs = []
+    '''
+    method runs all generators and all specifications and graphs qq plots, box whisker plots, and time series graphs
+    used for initial training and testing to determine the best generator
+    if run on training - returns generators to use
+    if run on testing - returns best generator 
+    '''
     final_generators = {}
     kmeans_gamma = {}
     ks_stats = []
-    sums = {}
+    stat_nis_dict = {}
+    stat_soj_dict = {}
     for c in class_names:
         ks_stats.append({"vals": ["p_nis", "p_sojourn", "stat_nis", "stat_sojourn"]})
     save_path = os.path.join(os.getcwd(), "ks_stats.xlsx")
     writer = pd.ExcelWriter(save_path, engine='xlsxwriter') 
     workbook=writer.book
-    ranks = {}
     classes = main_df['class'].copy(deep=True).astype(int).to_numpy()
+    best_gen = []
     
     
-    for nis_residual_spec in range(2):
+    for nis_residual_spec in range(4):
         spec_name = spec_names[nis_residual_spec]
         features = get_features(nis_residual_spec)
-        arrivals = get_arrivals2(main_df)
+        arrivals = get_arrivals(main_df)
         context = main_df[features]
         context = pd.get_dummies(data=context, drop_first=True)
         col_names = context.columns.tolist()
         print(col_names, len(context.columns))
+        # saves generators for later use
         if prev_gen_flag:
             generators, residuals = prev_gens[spec_name]
             kmeans, gamma_params = prev_kmeans_gamma[spec_name]
         else:
             generators, residuals = get_generators(context, main_df,  class_types, classes)
-            final_generators[spec_name] = (generators, residuals)
             K_max = 20
             k_best = find_best_k(context, main_df["sojourn"], range(2,K_max))
             kmeans, gamma_params = fit_gamma(main_df, context, y_label='sojourn', K=k_best)
             kmeans_gamma[spec_name] = (kmeans, gamma_params)
+        final_generators[spec_name] = (generators, residuals)
+        kmeans_gamma[spec_name] = (kmeans, gamma_params)
         
         class_spec_dfs = []
         for r in range(runs):    
@@ -638,70 +717,104 @@ def run_all_generators(main_df, class_types, gen_names, class_names, spec_names,
                 end = timer()
                 print("time for run:", end-start)
                 #write results
-                pd.DataFrame.from_dict(generated_log).to_csv(time_name +" " +spec_name + 'results_'+ str(gen_names[i]) + "_" +str(r)+'.csv', index=False)
+                pd.DataFrame.from_dict(generated_log).to_csv(time_name +" " +spec_name + '_results_'+ str(gen_names[i]) + "_" +str(r)+'.csv', index=False)
                 print("saved results\n")
 
                 class_dfs = get_class_dfs(generated_log, main_df["sojourn"], main_df)
+                # statistics gathered to determine best generator
                 p_nis, p_sojourn, stat_nis, stat_sojourn = get_ks_test_vals(class_dfs, class_names)
-                # print(class_names)
-                # print("p_nis:", p_nis)
-                # print("p_sojourn:", p_sojourn)
-                # print("stat_nis:", stat_nis)
-                # print("stat_sojourn:", stat_sojourn)
                 for c in range(len(class_names)):
                     final_stats = [p_nis[c], p_sojourn[c], stat_nis[c], stat_sojourn[c]]
                     ks_stats[c][gen_name] = final_stats
-                    # if c == 0:
-                    #     sums[spec_name+gen_name] = stat_nis[c] + stat_sojourn[c]
+                    if c == 0:
+                        stat_nis_dict[spec_name + "-" + gen_name] = stat_nis[c]
+                        stat_soj_dict[spec_name + "-" + gen_name] = stat_sojourn[c]
             
-                # logs.append(generated_log)
-                # graph_hist_cumulative_ts(class_dfs, gen_name, class_names, spec_name, time_name)
+                graph_hist_cumulative_ts(class_dfs, gen_name, class_names, spec_name, time_name)
                 class_spec_dfs.append(class_dfs)
                 
-            # plot_nis_ts(class_spec_dfs, gen_names, class_names, spec_name, time_name)
-            # plot_graphs(class_spec_dfs, gen_names, class_names, spec_name, time_name)
+            plot_nis_ts(class_spec_dfs, gen_names, class_names, spec_name, time_name)
+            plot_graphs(class_spec_dfs, gen_names, class_names, spec_name, time_name)
         
         worksheet=workbook.add_worksheet(spec_name)
         writer.sheets[spec_name] = worksheet
         for ind, name in enumerate(class_names):
             ks_df = pd.DataFrame.from_dict(ks_stats[ind])
-            # row = nis_residual_spec*5
             row = ind*7+1
             worksheet.write(row-1, 0, name)
+            # write stats to excel
             ks_df.to_excel(writer, sheet_name=spec_name, startrow=row, index=False)
-        
-        print(ks_stats[0])
-        stat_nis_dict = {}
-        stat_soj_dict = {}
-        for gen in gen_names:
-            stat_nis_dict[gen] = ks_stats[0][gen][2]
-            stat_soj_dict[gen] = ks_stats[0][gen][3]
-        print("stat_nis_dict:", stat_nis_dict)
-        print("stat_soj_dict:", stat_soj_dict)
+
+    if prev_gen_flag:
         sorted_nis = sorted(stat_nis_dict.items(), key=lambda x:x[1])
         sorted_soj = sorted(stat_soj_dict.items(), key=lambda x:x[1])
-        print("sorted_nis:", sorted_nis)
-        print("sorted_soj:", sorted_soj)
+        # print("sorted_nis:", sorted_nis)
+        # print("sorted_soj:", sorted_soj)
         gen_counters = {}
-        for ind, (gen_key, val) in enumerate(sorted_nis):
-            gen_counters[gen_key] = ind
-        for ind, (gen_key, val) in enumerate(sorted_soj):
-            gen_counters[gen_key] = gen_counters[gen_key] + ind
+        for ind, (gen_spec, val) in enumerate(sorted_nis):
+            gen_counters[gen_spec] = ind
+        for ind, (gen_spec, val) in enumerate(sorted_soj):
+            gen_counters[gen_spec] = gen_counters[gen_spec] + ind
+        # print(gen_counters)
+        best_gen = min(gen_counters, key=gen_counters.get).split("-")
 
-        print("gen_counters:", gen_counters)   
-
-
-        # print(ks_stats)
     writer._save()
     # print(sums)
     # print(min(sums, key=sums.get))
-    # best_gen = min(sums, key=sums.get).split("-")
-    # print(best_gen)
-    best_gen = []
-    return best_gen, final_generators, kmeans_gamma
     
+    return best_gen, final_generators, kmeans_gamma
+
+def run_interventions(main_df, gen_to_use, res_to_use, class_types, class_names, runs, interventions, time_name, nis_res_spec, log_scale = False, generator_flag = True):
+    '''
+    function to use for interventions
+    given a list of interventions, simulates the system 
+    '''
+    
+    classes = main_df['class'].copy(deep=True).astype(int).to_numpy()
+    features = get_features(nis_res_spec)
+    arrivals = get_arrivals(main_df)
+    context = main_df[features]
+    context = pd.get_dummies(data=context, drop_first=True)
+    col_names = context.columns.tolist()
+    print(col_names, len(context.columns))
+    
+    class_spec_dfs = {}
+    for intervention in interventions:
+        for r in range(runs):    
+            start = timer()
+            if generator_flag:
+                gen = gen_to_use
+                res = res_to_use
+                kmeans = "no_kmeans"
+                gamma_params = "no_gamma"
+            else:
+                gen = "no_gen"
+                res = "no_res"
+                kmeans = gen_to_use
+                gamma_params = res_to_use
+        
+
+            generated_log = simulate_system(gen, res, log_scale,
+                                        arrivals, context,  kmeans, gamma_params, generator_flag, class_types, classes, col_names, intervention)
+            end = timer()
+            print("time for run:", end-start)
+            #write results
+            filename = str(intervention) + "_results"
+            pd.DataFrame.from_dict(generated_log).to_csv("{}.csv".format(filename), index=False)
+            print("saved results\n")
+
+            class_dfs = get_class_dfs(generated_log, main_df["sojourn"], main_df)
+
+            class_spec_dfs[intervention] = class_dfs
+    
+    # graphs box plots for each class and intervention
+    prepare_box_plots(class_spec_dfs, interventions, class_names, time_name)
+    
+    # need to add average LOS, 90 percentile stats
+    
+    return 
+ 
 if __name__ == "__main__":
-    nis_residual_specs = 3
     # nis_residual_specs: 
     # 0 = arr_nis + last_rem_los
     # 1 = arr_nis per class + last_rem_los
@@ -714,45 +827,55 @@ if __name__ == "__main__":
     else:
         df = main_process("FirstThree.csv")
     
-    training = ["1/1/2016", "3/1/2016"]
+    # splits data frame given start and end dates
+    training = ["1/1/2016", "2/1/2016"]
     last_month = datetime.strptime(training[1], '%m/%d/%Y') - timedelta(days=1)
     last_month = last_month.strftime("%m/%d/%Y")
     training_months = [datetime.strptime(date, '%m/%d/%Y').strftime('%b') for date in [training[0], last_month]]
-    testing = ["3/1/2016", "4/1/2016"]
+    testing = ["2/1/2016", "3/1/2016"]
     last_month = datetime.strptime(testing[1], '%m/%d/%Y') - timedelta(days=1)
     last_month = last_month.strftime("%m/%d/%Y")
     testing_months = [datetime.strptime(date, '%m/%d/%Y').strftime('%b') for date in [testing[0], last_month]]
     print(training_months)
     print(testing_months)
-
-    
     train_df = df[df["Triage DateTime"] >= training[0]]
     train_df = train_df[train_df["Triage DateTime"] < training[1]]
     test_df = df[df["Triage DateTime"] >= testing[0]]
     test_df = test_df[test_df["Triage DateTime"] < testing[1]]
-
-    # print(train_df)
-    # print(test_df)
-
     print("dataframes loaded")
 
-    
+    # sets up lists for future use
     all_classes = df['class'].astype(int).unique().tolist()
     all_classes.sort() 
     generator_names = ["EBM", "RF", "Clustering"]
     class_names = ["All Classes", "Class 0", "Class 1", "Class 2"]
     specification_names = ["1NIS_1Res", "3NIS_1Res", "1NIS_3Res", "3NIS_3Res"]
 
+    # creates generators and simulates system on training df
     _, trained_gens, trained_clustering = run_all_generators(train_df, all_classes, generator_names, class_names, specification_names, "Train(" + training_months[0] + "-" + training_months[1] + ")", 1)
     print("done training")
-    best_gen, _,_ = run_all_generators(test_df, all_classes, generator_names, class_names, specification_names, "Test(" + testing_months[0] + ")", 1, trained_gens, trained_clustering, prev_gen_flag=True)
-    print(best_gen)
+    # uses the generators from training to simulate system and determine best generator for future use
+    best_gen, gens, clustering = run_all_generators(test_df, all_classes, generator_names, class_names, specification_names, "Test(" + testing_months[0] + ")", 1, trained_gens, trained_clustering, prev_gen_flag=True)
+    print("best generator", best_gen)
     
-        
+    # set up variables for future use
+    best_gen_spec = best_gen[0]
+    spec_num = specification_names.index(best_gen_spec)
+    if best_gen[1] != "Clustering":
+        spec_gens, spec_res = gens[best_gen_spec]
+        index = generator_names.index(best_gen[1])
+        gen_to_use = spec_gens[index]
+        res_to_use = spec_res[index]
+        generator_flag = True
+    else:
+         spec_kmeans, spec_params = clustering[best_gen_spec]
+         gen_to_use = spec_kmeans
+         res_to_use = spec_params
+         generator_flag = False    
+
 
     interventions = [0, 60, 180, 300]
+    # runs interventions on other dfs
+    # change from test_df
+    run_interventions(test_df, gen_to_use, res_to_use, all_classes, class_names, 1, interventions, "Int:" + testing_months[0], spec_num, False, generator_flag)
 
-# whichever generator is best:
-# for each intervention 
-# main run:
-# 
